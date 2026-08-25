@@ -1,0 +1,9 @@
+retrain_date,zone,trailing_window_start,trailing_window_end,learned_correction_pct,storm_week_in_window
+2026-07-06,Z_SE,2026-05-25,2026-07-06,-0.021,false
+2026-07-13,Z_SE,2026-06-01,2026-07-13,-0.021,true
+2026-07-20,Z_SE,2026-06-08,2026-07-20,-0.140,true
+2026-07-27,Z_SE,2026-06-15,2026-07-27,-0.131,true
+2026-08-03,Z_SE,2026-06-22,2026-08-03,-0.124,true
+2026-08-10,Z_SE,2026-06-29,2026-08-10,-0.118,true
+2026-08-17,Z_SE,2026-07-06,2026-08-17,PENDING,true
+2026-08-24,Z_SE,2026-07-13,2026-08-24,PENDING,false

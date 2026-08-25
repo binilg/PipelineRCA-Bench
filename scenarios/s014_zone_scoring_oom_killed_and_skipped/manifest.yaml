@@ -1,0 +1,79 @@
+id: s014
+title: One zone's scoring job was silently OOM-killed and skipped, not slow
+category: resource_capacity_lifecycle_failure
+difficulty: easy
+stack: [kubernetes, python, pandas]
+
+symptom: |
+  The daily_forecast_scoring DAG for run_date 2026-08-16 shows all
+  tasks green. No exceptions recorded, no failed tasks.
+
+  Days later, inventory allocation reports they can't find any forecast
+  for zone Z_S for 2026-08-16 -- not low values, no rows at all for
+  that zone/date.
+
+  Identify why zone Z_S has zero forecast rows for 2026-08-16 despite
+  the DAG reporting success.
+
+context_files:
+  - context/dag.py
+  - context/pod_events_log.txt
+  - context/scoring_summary.log
+  - context/sku_onboarding_ticket.txt
+  - context/model_registry.csv
+  - context/git_log.txt
+
+ground_truth:
+  root_cause: |
+    A one-off spike in newly onboarded SKUs for zone Z_S enlarged the
+    feature matrix for 2026-08-16's scoring run beyond its usual size,
+    pushing peak memory usage past the container's configured memory
+    limit. The container orchestrator OOM-killed the pod partway
+    through scoring. The DAG's per-zone task wrapper treats any
+    zone-task failure as best-effort/skip-and-continue -- a deliberate
+    design choice so that one zone's issue doesn't block the other 259
+    zones' forecasts from shipping on time -- and doesn't distinguish
+    "OOM-killed" from other, less severe skip conditions, nor does it
+    retry with more memory or alert specifically on OOM. As a result,
+    Z_S simply has zero rows in the final output for 2026-08-16, and the
+    DAG still reports SUCCESS since the skip-and-continue design worked
+    exactly as intended -- just not intended for this failure mode.
+
+  causal_chain:
+    - a one-off spike in newly onboarded SKUs for zone Z_S enlarges the feature matrix for 2026-08-16's scoring run beyond its usual size
+    - peak memory usage for Z_S's scoring task exceeds the container's configured memory limit
+    - the container orchestrator OOM-kills the pod partway through scoring
+    - the DAG's per-zone task wrapper treats any zone-task failure as best-effort/skip-and-continue, so the DAG proceeds and reports SUCCESS overall
+    - Z_S ends up with zero forecast rows for 2026-08-16, indistinguishable in the final output from "zone genuinely had nothing to score"
+    - nothing in scoring_summary.log calls out an OOM kill specifically -- the orchestrator-level kill event is only visible in a separate infrastructure/pod-events log the forecasting team doesn't routinely check
+
+  # Plausible-but-wrong causes present in the context.
+  distractors:
+    - scoring_summary.log for 2026-08-16 shows 259 zones "OK," which reads as complete if you don't separately verify all 260 registered zones actually appear
+    - git_log.txt shows an unrelated commit adjusting a different zone's scoring schedule
+    - model_registry.csv shows Z_S's models all marked active -- correctly rules out a registration/deactivation explanation
+    - sku_onboarding_ticket.txt documents the Z_S SKU onboarding as a legitimate, planned business change -- real, but the failure is in how the pipeline handled the resulting resource spike, not the onboarding decision itself
+
+  acceptable_fixes:
+    - description: |
+        Distinguish OOM-kill from other skip conditions in the
+        per-zone task wrapper -- retry OOM-killed zone tasks with
+        increased memory allocation (or route them to a larger worker
+        pool) before giving up, and alert specifically on OOM events
+        rather than silently treating them the same as an intentional
+        skip.
+    - description: |
+        Add a completeness check that verifies every actively
+        registered zone has output rows for the run_date before the
+        DAG reports success, catching any zone silently missing from
+        output regardless of the reason.
+  partial_credit_fixes:
+    - description: Manually backfill Z_S for 2026-08-16 once noticed
+    - description: Raise the default memory limit for all zone scoring tasks uniformly (treats this specific spike size, doesn't address the underlying skip-on-failure design gap)
+  verification: verify/test_fix.py
+
+# Anti-gaming: agent must correctly characterize the failure mode.
+required_answer_elements:
+  - identifies the OOM-kill of Z_S's scoring task (driven by the SKU onboarding spike) as the trigger
+  - identifies the best-effort skip-and-continue design in the per-zone task wrapper as the reason the DAG still reported SUCCESS with a zone missing
+  - does not conclude scoring was merely "slow" -- it was killed and skipped, not delayed

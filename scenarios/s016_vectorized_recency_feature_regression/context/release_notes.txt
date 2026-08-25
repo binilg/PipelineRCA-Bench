@@ -1,0 +1,20 @@
+Release: daily_forecast_scoring v2026.08.10
+Owner: forecasting-platform-eng
+
+Summary
+-------
+Performance optimization release. Rewrites days_since_last_sale() from
+a per-SKU Python loop (O(n), ~40s for the full catalog) to a vectorized
+pandas implementation (~1.2s for the full catalog). No behavior change
+intended -- this is a refactor for speed, not a feature change.
+
+Testing
+-------
+Unit tests updated and passing (see test_suite_summary.txt). Ran a
+side-by-side comparison of old vs. new implementation output on the QA
+sample and confirmed identical results to 6 decimal places.
+
+Rollout
+-------
+Deployed to prod 2026-08-10, 06:00. No incidents reported at deploy
+time. Standard 24h bake-in monitoring showed no alerts.

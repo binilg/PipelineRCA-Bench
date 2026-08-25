@@ -1,0 +1,20 @@
+2026-07-16 02:41:05 INFO  [score_all_models] Run started. run_date=2026-07-16
+2026-07-16 02:41:05 INFO  [score_all_models] Model registry loaded: 258 active models
+2026-07-16 03:05:12 INFO  [score_all_models] Scoring complete. status=SUCCESS
+2026-07-16 03:07:40 INFO  [write_forecast_partition] Writing forecast partition: /warehouse/forecasts/run_date=2026-07-16 (1294075 rows)
+2026-07-16 03:11:58 INFO  [write_forecast_partition] Write complete. status=SUCCESS
+2026-07-16 03:12:10 INFO  [publish_to_warehouse] Publishing partition run_date=2026-07-16 to analytics warehouse
+2026-07-16 03:14:33 ERROR [publish_to_warehouse] Timeout connecting to warehouse-api.internal:443 after 120s
+2026-07-16 03:14:33 ERROR [publish_to_warehouse] Task failed. status=FAILED
+2026-07-16 03:14:34 INFO  [scoring_orchestrator] Run state: 2/3 tasks success, 1 failed (publish_to_warehouse)
+
+-- manual clear at 03:22, see context/ops_action_log.txt --
+
+2026-07-16 03:23:01 INFO  [score_all_models] Run started. run_date=2026-07-16 (cleared, attempt 2)
+2026-07-16 03:23:01 INFO  [score_all_models] Model registry loaded: 258 active models
+2026-07-16 03:47:19 INFO  [score_all_models] Scoring complete. status=SUCCESS
+2026-07-16 03:49:02 INFO  [write_forecast_partition] Writing forecast partition: /warehouse/forecasts/run_date=2026-07-16 (1294075 rows)
+2026-07-16 03:53:47 INFO  [write_forecast_partition] Write complete. status=SUCCESS
+2026-07-16 03:54:00 INFO  [publish_to_warehouse] Publishing partition run_date=2026-07-16 to analytics warehouse
+2026-07-16 03:55:12 INFO  [publish_to_warehouse] Publish complete. status=SUCCESS
+2026-07-16 03:55:12 INFO  [scoring_orchestrator] Run completed successfully. status=SUCCESS

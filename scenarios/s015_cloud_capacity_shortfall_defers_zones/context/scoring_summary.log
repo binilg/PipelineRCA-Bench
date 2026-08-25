@@ -1,0 +1,14 @@
+2026-08-12 02:41:00 INFO  [scheduler] run_date=2026-08-12: 2 zones deferred (insufficient worker capacity): ['Z_SE', 'Z_NW']
+2026-08-12 02:41:00 INFO  [scheduler] run_date=2026-08-12: 258/260 zones scheduled
+2026-08-12 03:05:12 INFO  [score_all_models] Scoring complete. status=SUCCESS
+2026-08-12 03:05:12 INFO  [scoring_orchestrator] Run completed successfully. status=SUCCESS
+
+2026-08-14 02:41:00 INFO  [scheduler] run_date=2026-08-14: 1 zone deferred (insufficient worker capacity): ['Z_S']
+2026-08-14 02:41:00 INFO  [scheduler] run_date=2026-08-14: 259/260 zones scheduled
+2026-08-14 03:04:40 INFO  [score_all_models] Scoring complete. status=SUCCESS
+2026-08-14 03:04:40 INFO  [scoring_orchestrator] Run completed successfully. status=SUCCESS
+
+2026-08-16 02:41:00 INFO  [scheduler] run_date=2026-08-16: 3 zones deferred (insufficient worker capacity): ['Z_N', 'Z_SW', 'Z_NE']
+2026-08-16 02:41:00 INFO  [scheduler] run_date=2026-08-16: 257/260 zones scheduled
+2026-08-16 03:06:02 INFO  [score_all_models] Scoring complete. status=SUCCESS
+2026-08-16 03:06:02 INFO  [scoring_orchestrator] Run completed successfully. status=SUCCESS

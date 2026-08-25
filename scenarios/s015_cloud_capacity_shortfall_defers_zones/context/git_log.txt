@@ -1,0 +1,3 @@
+commit e5c9a03  2026-07-14  Change scoring worker pool instance type to c6i.2xlarge for better throughput
+commit 2a71bd8  2026-04-02  Add scheduler.py deferred-not-failed policy for capacity-constrained runs
+commit 6f80c19  2026-01-30  Set coverage_check MIN_EXPECTED_ROWS = 1,250,000

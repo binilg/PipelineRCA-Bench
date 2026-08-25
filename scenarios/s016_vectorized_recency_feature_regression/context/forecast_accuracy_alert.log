@@ -1,0 +1,4 @@
+2026-08-14 09:20:11 WARN  [accuracy_monitor] MAPE for SKUs with launch_date within trailing 30 days, run_date=2026-08-11: 243.8% (threshold 35%)
+2026-08-14 09:20:11 WARN  [accuracy_monitor] MAPE for SKUs with launch_date within trailing 30 days, run_date=2026-08-12: 251.2% (threshold 35%)
+2026-08-14 09:20:12 INFO  [accuracy_monitor] MAPE for SKUs with sales_history_days >= 30, run_date=2026-08-11..08-12: 9.1% (nominal)
+2026-08-14 09:20:12 INFO  [accuracy_monitor] 62 SKUs affected across 2 days, all with zero sales history as of run_date. No accuracy degradation observed outside this population.

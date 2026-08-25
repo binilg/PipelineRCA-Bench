@@ -1,0 +1,80 @@
+id: s006
+title: Requeued upload succeeded, but the downstream partner webhook fired twice
+category: rerun_idempotency_failure
+difficulty: medium
+stack: [airflow, python]
+
+symptom: |
+  The daily_forecast_scoring DAG's upload_to_partner_feed task for
+  run_date 2026-07-25 failed once on a transient network timeout and
+  succeeded after a standard requeue. Internally, nothing looks wrong --
+  the run history shows one failed attempt and one successful retry,
+  which is normal and expected.
+
+  Four days later, the partner team reports they ingested the
+  2026-07-25 forecast file twice into their system.
+
+  Identify why the partner received/ingested the file twice when the
+  internal upload task only failed once and succeeded on retry.
+
+context_files:
+  - context/dag.py
+  - context/upload_log.txt
+  - context/partner_feed_config.yaml
+  - context/partner_support_ticket.txt
+  - context/git_log.txt
+
+ground_truth:
+  root_cause: |
+    upload_to_partner_feed() calls notify_partner_webhook() first, then
+    performs the actual file transfer. On its first attempt for
+    run_date 2026-07-25, the webhook notification fired successfully,
+    but the file transfer itself then timed out, failing the task. The
+    on-call engineer requeued the task per the standard runbook. The
+    retried attempt again called notify_partner_webhook() first, then
+    successfully transferred the file. Because notify_partner_webhook()
+    fires unconditionally on every attempt and carries no per-run_date
+    idempotency key, both the failed first attempt and the successful
+    retry each independently sent a "forecast file ready" notification
+    to the partner. The partner's ingestion system has no dedup logic
+    of its own, so it treated each notification as a new, valid trigger
+    and ingested the file twice. Internally, both attempts' logs look
+    like normal, isolated executions -- the duplication is only visible
+    on the partner's side.
+
+  causal_chain:
+    - upload_to_partner_feed's first attempt for run_date=2026-07-25 calls notify_partner_webhook() first, then begins the file transfer
+    - the file transfer times out (transient network issue) and the task fails, but the webhook notification had already been sent
+    - on-call requeues the task per the standard runbook ("requeuing the upload job fixes it")
+    - the second attempt again calls notify_partner_webhook() first, then successfully transfers the file
+    - two "forecast file ready" webhook calls reach the partner for the same run_date, with no idempotency key distinguishing attempt 1 from attempt 2
+    - the partner's ingestion system treats each webhook as a new, valid trigger and ingests the file twice; nothing on the internal side flags this since both attempts' logs look like normal isolated executions
+
+  # Plausible-but-wrong causes present in the context.
+  distractors:
+    - git_log.txt shows an unrelated commit rotating the partner API's authentication token, merged the same week
+    - upload_log.txt shows a retry-count metric incrementing to 1 -- expected behavior for any transient failure, not itself abnormal
+    - partner_feed_config.yaml shows max_attempts=3 -- correct/intended retry policy, not the bug
+    - git_log.txt shows a different partner integration (retailer_beta) already using an idempotency key in its own notify call -- real, shows the fix pattern already exists elsewhere, tempting to conclude "the shared function must be fine" if you check the wrong integration
+
+  acceptable_fixes:
+    - description: |
+        Move the webhook notification to fire only once, after the
+        upload is confirmed fully successful (not per-attempt), and
+        include a per-run_date idempotency key so a notification can
+        never be sent twice for the same run_date even if the task is
+        retried.
+    - description: |
+        Make notify_partner_webhook() itself idempotent using a
+        run_date-scoped idempotency key, consistent with how the
+        retailer_beta integration already implements it.
+  partial_credit_fixes:
+    - description: Ask the partner to dedupe ingestion on their end (relies on a third party, doesn't fix the root cause)
+    - description: Add internal alerting when an upload task's attempt count exceeds 1 (catches it faster, doesn't prevent it)
+  verification: verify/test_fix.py
+
+# Anti-gaming: agent must name the mechanism, not just the symptom.
+required_answer_elements:
+  - identifies notify_partner_webhook() firing on every attempt (not gated on final success, no idempotency key) as the mechanism
+  - identifies that both the failed first attempt and the successful retry each independently sent the notification
+  - does not conclude the internal upload/retry logic itself is broken -- the retry behaved correctly; the notification side-effect is the actual bug

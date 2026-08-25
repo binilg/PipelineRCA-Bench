@@ -1,0 +1,8 @@
+2026-08-12 02:41:03 INFO  [score_all_models] Run started. run_date=2026-08-12
+2026-08-12 02:41:03 INFO  [score_all_models] Model registry loaded: 260 active models
+2026-08-12 02:58:11 ERROR [scoring_worker_07] Worker crashed (segfault in native BLAS library) after completing 80/260 models
+2026-08-12 02:58:12 WARN  [scoring_orchestrator] Worker pool degraded, no auto-restart configured for this worker type
+2026-08-12 03:15:00 WARN  [scoring_orchestrator] Finalize-on-timeout triggered (15 min no progress) -- writing partition with models completed so far
+2026-08-12 03:15:41 INFO  [write_forecast_partition] Wrote 1,050,220 rows (80 of 260 models)
+2026-08-12 03:15:42 INFO  [coverage_check] Coverage check: PASS (1,050,220 >= 1,000,000)
+2026-08-12 03:15:42 INFO  [scoring_orchestrator] Run completed successfully. status=SUCCESS

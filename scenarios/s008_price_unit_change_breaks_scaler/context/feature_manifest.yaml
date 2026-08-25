@@ -1,0 +1,12 @@
+features:
+  - name: avg_unit_price
+    type: float
+    unit: currency
+    source: pricing_export.avg_unit_price
+    description: Average unit price for the SKU over the trailing 7 days
+  - name: sku_group_idx
+    type: int
+    source: derived
+  - name: zone_idx
+    type: int
+    source: derived

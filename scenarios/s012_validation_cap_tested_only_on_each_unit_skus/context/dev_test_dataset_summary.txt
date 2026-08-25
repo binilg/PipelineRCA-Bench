@@ -1,0 +1,13 @@
+# dev/staging test dataset summary (used to develop and test validation_rule.py)
+
+Total SKUs in dev dataset: 240
+unit_type breakdown:
+  EACH: 240 (100%)
+  CASE: 0 (0%)
+
+Max forecast_qty observed in dev dataset: 3,180 (SKU_DEV_0091, EACH)
+
+Note: dev dataset was seeded from a snapshot of zone Z_N only, which
+historically has not carried case-unit SKUs. Case-unit SKUs were
+introduced to production later (Z_SW bulk beverage/pantry lines) and
+were never backfilled into the dev seed dataset.

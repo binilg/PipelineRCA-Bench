@@ -1,0 +1,82 @@
+id: s016
+title: A vectorized rewrite of a recency feature broke scoring for newly launched SKUs the test sample never included
+category: change_management_failure
+difficulty: medium
+stack: [python, pandas, ci-cd]
+
+symptom: |
+  A performance-optimization release for daily_forecast_scoring shipped
+  yesterday and the DAG ran green today. No exceptions, no schema
+  validation failures.
+
+  Three days later, the forecast accuracy monitor flags severe
+  over-forecasting -- MAPE of 240%+ -- isolated to SKUs launched within
+  the last 30 days. SKUs with longer sales history are within normal
+  accuracy range.
+
+  Identify why newly launched SKUs specifically are being wildly
+  over-forecast and what should be fixed.
+
+context_files:
+  - context/recency_feature.py
+  - context/release_notes.txt
+  - context/test_suite_summary.txt
+  - context/scoring_summary.log
+  - context/forecast_accuracy_alert.log
+  - context/git_log.txt
+
+ground_truth:
+  root_cause: |
+    A release rewrote days_since_last_sale() from an explicit per-SKU
+    loop (with a deliberate branch for "no prior sale exists yet") to a
+    vectorized pandas implementation for performance. The vectorized
+    version computes (run_date - last_sale_date).dt.days, which is NaN
+    for any SKU with no sales history, and then calls .fillna(0) to
+    "clean up" the NaNs -- which silently turns "no sales history" into
+    "sold today" (0 days since last sale), the strongest possible
+    recency signal.
+
+    The test suite that validated the rewrite sampled only SKUs with at
+    least 180 days of sales history, so the no-history code path was
+    never exercised before shipping. In production, every SKU launched
+    within the trailing recency window has no prior sale and hits this
+    path, causing the model to treat brand-new SKUs as red-hot sellers
+    and produce wildly over-inflated forecasts for exactly that
+    population.
+
+  causal_chain:
+    - the release rewrites days_since_last_sale() from an explicit loop with a dedicated "no sales history" branch to a vectorized pandas implementation for performance
+    - the vectorized version computes a date difference that is NaN for any SKU with no prior sale, then calls .fillna(0) to remove NaNs
+    - .fillna(0) silently reinterprets "no sales history" as "0 days since last sale" -- the strongest possible recency/hot-demand signal, the opposite of the intended conservative treatment
+    - the pre-release test suite sampled only SKUs with >=180 days of sales history, so the no-history branch was never exercised in QA
+    - the release passes CI and ships; the DAG runs green because nothing raises -- fillna(0) is a deliberate, "successful" operation, not a crash
+    - newly launched SKUs (no prior sale) are scored with an artificially hot recency feature, producing large over-forecasts; the accuracy monitor catches it three days later once actuals land, isolated to the launched-within-30-days population
+
+  # Plausible-but-wrong causes present in the context.
+  distractors:
+    - git_log.txt shows an unrelated commit in the same release bumping a logging library version
+    - release_notes.txt frames the change purely as a "performance optimization, no behavior change intended" -- true in intent, misleading about actual impact
+    - test_suite_summary.txt shows 000/000 test failures and 94% line coverage on recency_feature.py -- high coverage number that doesn't reveal the sampled population was unrepresentative
+    - scoring_summary.log shows nominal row counts and runtime -- nothing about the run itself looks anomalous
+
+  acceptable_fixes:
+    - description: |
+        Preserve an explicit no-history branch in the vectorized
+        implementation -- e.g. use a boolean mask to assign a distinct
+        sentinel value (or exclude the SKU from this feature entirely)
+        for rows with no prior sale, instead of fillna(0) collapsing
+        "no history" into "sold today."
+    - description: |
+        Expand the test sample to include SKUs at every sales-history
+        tier, including zero, so a behavior change in the no-history
+        path would be caught by CI before shipping.
+  partial_credit_fixes:
+    - description: Roll back the release to the previous implementation (fixes it, doesn't address why testing missed it)
+    - description: Manually override/cap forecasts for SKUs launched in the last 30 days until the underlying fix ships
+  verification: verify/test_fix.py
+
+# Anti-gaming: agent must name the mechanism and the population, not just "a bug in the release."
+required_answer_elements:
+  - identifies fillna(0) turning "no sales history" into "0 days since last sale" as the mechanism
+  - identifies the test suite's sampling (only SKUs with >=180 days of history) as why the regression wasn't caught pre-release
+  - identifies newly launched SKUs (not the general catalog) as the affected population

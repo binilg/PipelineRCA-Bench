@@ -1,0 +1,5 @@
+2026-08-13 02:41:05 INFO  [score_all_models] Run started. run_date=2026-08-13
+2026-08-13 03:04:12 INFO  [score_all_models] Scoring complete. status=SUCCESS
+2026-08-13 03:04:15 INFO  [write_forecast_partition] Writing 1,861,220 rows to forecast_output_v2 for run_date=2026-08-13
+2026-08-13 03:07:40 INFO  [write_forecast_partition] Write complete. status=SUCCESS
+2026-08-13 03:07:41 INFO  [scoring_orchestrator] Run completed successfully. status=SUCCESS

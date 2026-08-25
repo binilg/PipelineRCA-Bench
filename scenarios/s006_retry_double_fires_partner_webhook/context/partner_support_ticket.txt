@@ -1,0 +1,18 @@
+Subject: Duplicate ingestion of forecast file, run_date 2026-07-25
+From: partner-integrations@acmeretail.example.com
+Date: 2026-07-29
+
+Hi team,
+
+Our ingestion system processed the daily_forecast file for run_date
+2026-07-25 twice -- we received two separate "forecast-ready" webhook
+calls about 6 minutes apart that morning (05:10 and 05:16 UTC), and our
+system doesn't dedupe on ingestion, so it loaded the file twice into our
+downstream allocation tool. We've since manually removed the duplicate.
+
+Could you confirm on your side why we'd get two notifications for the
+same run_date? Happy to add dedup logic on our end too, but wanted to
+flag it in case something's off upstream.
+
+Thanks,
+Partner Integrations Team

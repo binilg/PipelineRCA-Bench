@@ -1,0 +1,16 @@
+$ pytest test_recency_feature.py -v --cov=recency_feature
+
+test_recency_feature.py::test_vectorized_matches_loop_implementation PASSED
+test_recency_feature.py::test_recency_decreases_with_more_recent_sale PASSED
+test_recency_feature.py::test_output_dtype_is_int PASSED
+
+3 passed in 0.18s
+Coverage: recency_feature.py 94%
+
+# QA sample used for test_vectorized_matches_loop_implementation:
+# 1,000 SKUs randomly sampled from the catalog, filtered to
+# `sales_history_days >= 180` to ensure a stable comparison baseline
+# against the old implementation (short-history SKUs were excluded to
+# avoid noisy day-to-day fluctuation in the comparison). This filter
+# means no SKU with zero sales history was ever included in the
+# side-by-side comparison or any other test in this suite.

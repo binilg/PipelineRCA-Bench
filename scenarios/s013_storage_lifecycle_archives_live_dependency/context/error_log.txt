@@ -1,0 +1,8 @@
+2026-08-14 02:41:02 INFO  [score_all_models] Run started. run_date=2026-08-14
+2026-08-14 02:41:03 ERROR [score_all_models] Traceback (most recent call last):
+  File "dag.py", line 12, in load_holiday_calendar
+    return pd.read_csv("/reference-data/holiday_calendar_reference.csv")
+  File "storage_sdk/client.py", line 88, in open
+    raise FileNotFoundError(f"Object not found in standard tier: {path}")
+FileNotFoundError: Object not found in standard tier: /reference-data/holiday_calendar_reference.csv
+2026-08-14 02:41:03 ERROR [score_all_models] Task failed. status=FAILED

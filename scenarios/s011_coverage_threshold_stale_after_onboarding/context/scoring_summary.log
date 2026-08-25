@@ -1,0 +1,8 @@
+2026-08-10 02:41:00 INFO  [score_all_models] Run started. run_date=2026-08-10
+2026-08-10 03:04:12 INFO  [write_forecast_partition] Wrote 1,301,940 rows (260 of 260 models)
+2026-08-10 03:04:13 INFO  [coverage_check] Coverage check: PASS (1,301,940 >= 1,000,000)
+2026-08-10 03:04:13 INFO  [scoring_orchestrator] Run completed successfully. status=SUCCESS
+2026-08-11 02:40:55 INFO  [score_all_models] Run started. run_date=2026-08-11
+2026-08-11 03:03:48 INFO  [write_forecast_partition] Wrote 1,304,610 rows (260 of 260 models)
+2026-08-11 03:03:49 INFO  [coverage_check] Coverage check: PASS (1,304,610 >= 1,000,000)
+2026-08-11 03:03:49 INFO  [scoring_orchestrator] Run completed successfully. status=SUCCESS

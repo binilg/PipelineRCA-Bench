@@ -1,0 +1,8 @@
+# Infra pod-events log (separate from application logs; not routinely
+# checked by the forecasting team)
+
+2026-08-16 02:47:12 Pod scoring-zone-z-s-7d9f8 OOMKilled (memory limit 4Gi exceeded, peak usage 4.3Gi)
+2026-08-16 02:47:13 Pod scoring-zone-z-s-7d9f8 terminated, exit code 137
+2026-08-16 02:47:14 No restart policy configured for scoring-zone-* pods beyond default single retry
+2026-08-16 02:47:45 Retry attempt for scoring-zone-z-s also OOMKilled (same memory limit, same input)
+2026-08-16 02:47:46 Zone task marked failed after 2 attempts; orchestrator proceeding per best-effort policy

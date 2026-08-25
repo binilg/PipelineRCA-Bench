@@ -1,0 +1,10 @@
+# Read by the online feature pipeline to decide what to compute for the
+# currently active production model. Last updated 2026-07-30 -- one week
+# before the v5 promotion.
+active_model: demand_forecast_v5
+active_model_features:
+  - sku_group_idx
+  - zone_idx
+  - avg_unit_price_z
+  - trailing_3d_avg
+  # promo_flag intentionally absent -- this file was not updated when v5 was promoted

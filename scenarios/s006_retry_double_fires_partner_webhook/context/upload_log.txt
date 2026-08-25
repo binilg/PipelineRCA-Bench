@@ -1,0 +1,10 @@
+2026-07-25 05:10:02 INFO  [notify_partner_webhook] Notified partner webhook for run_date=2026-07-25
+2026-07-25 05:10:03 INFO  [upload_to_partner_feed] Uploading forecast file for run_date=2026-07-25
+2026-07-25 05:11:03 ERROR [upload_to_partner_feed] Timeout connecting to partner-sftp.example.com after 60s
+2026-07-25 05:11:03 ERROR [upload_to_partner_feed] Task failed. status=FAILED attempt=1
+
+-- requeued at 05:15, see #forecast-ops --
+
+2026-07-25 05:16:10 INFO  [notify_partner_webhook] Notified partner webhook for run_date=2026-07-25
+2026-07-25 05:16:11 INFO  [upload_to_partner_feed] Uploading forecast file for run_date=2026-07-25
+2026-07-25 05:16:52 INFO  [upload_to_partner_feed] Upload complete. status=SUCCESS attempt=2

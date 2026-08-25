@@ -1,0 +1,6 @@
+2026-07-20 02:40:11 INFO  [score_all_models] Run started. run_date=2026-07-20
+2026-07-20 02:40:11 INFO  [score_all_models] SKU catalog loaded: 1842 active SKUs across 6 zone models
+2026-07-20 03:02:55 INFO  [score_all_models] Scoring complete. 1842 rows. status=SUCCESS
+2026-07-20 03:04:02 INFO  [write_forecast_partition] Writing forecast partition: /warehouse/forecasts/run_date=2026-07-20 (1842 rows)
+2026-07-20 03:06:40 INFO  [write_forecast_partition] Write complete. status=SUCCESS
+2026-07-20 03:06:40 INFO  [scoring_orchestrator] Run completed successfully. status=SUCCESS

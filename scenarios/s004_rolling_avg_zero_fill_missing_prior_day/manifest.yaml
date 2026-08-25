@@ -1,0 +1,83 @@
+id: s004
+title: Rolling-average feature silently zero-fills after a missing prior-day partition
+category: recovery_temporal_state
+difficulty: medium
+stack: [airflow, python, pandas]
+
+# What the agent is told. Note: the failure that matters happened two days earlier.
+symptom: |
+  The daily_forecast_scoring DAG for run_date 2026-08-04 shows all tasks
+  green. No exceptions recorded.
+
+  The nightly forecast uplift health check flagged an anomaly: total
+  forecast_qty for 2026-08-04 is -42% versus 2026-08-03, well past the
+  10% threshold, in the negative direction.
+
+  Identify why 2026-08-04's forecasts collapsed and what should be fixed.
+
+context_files:
+  - context/dag.py
+  - context/feature_loader.py
+  - context/ops_action_log.txt
+  - context/scoring_summary.log
+  - context/forecast_uplift_check.log
+  - context/git_log.txt
+
+ground_truth:
+  root_cause: |
+    build_features() computes a 3-day trailing average of actuals
+    (D-1, D-2, D-3) as a demand-level feature for every model. The
+    2026-08-02 run failed outright on an unrelated transient DB
+    connection error, so no forecast/actuals partition was ever written
+    for that date. On-call triaged the failure and deliberately deferred
+    the backfill to the next scheduled weekly backfill window, rather
+    than backfilling same-day.
+
+    When 2026-08-04's run computes its trailing 3-day average (needing
+    2026-08-01, 08-02, 08-03), the feature loader's lookup for 08-02
+    raises FileNotFoundError internally, which is caught and silently
+    replaced with 0.0 instead of being excluded from the average or
+    blocking the run. With one of three days hard-zeroed, the trailing
+    average -- and therefore every model's demand feature -- comes out
+    roughly a third too low, suppressing forecasts across the board.
+    0.0 is a valid float, so no exception is raised anywhere and the DAG
+    reports SUCCESS.
+
+  causal_chain:
+    - 2026-08-02's run fails outright on a transient DB error; no partition is ever written for that date
+    - on-call triages the failure and defers the backfill to the next scheduled weekly window rather than backfilling immediately
+    - 2026-08-03's trailing window also includes 08-02, producing a smaller -8% dip that stays under the alert threshold and goes unnoticed
+    - 2026-08-04's trailing_3d_avg needs 08-01, 08-02, 08-03; the loader for 08-02 hits FileNotFoundError, caught and replaced with 0.0
+    - the trailing average is artificially depressed by the hard-zeroed day, and every model scores against this suppressed demand feature
+    - scoring completes normally since 0.0 is a valid feature value; the DAG reports SUCCESS for 2026-08-04
+    - the uplift check flags -42% versus 08-03, the first place the effect becomes visible
+
+  # Plausible-but-wrong causes present in the context.
+  distractors:
+    - ops_action_log.txt shows the 08-02 failure being triaged and consciously deferred -- real, but doesn't by itself explain why 08-04 (two days later) is affected, since a reader may assume it's already being handled
+    - git_log.txt shows an unrelated commit tuning the rolling-window length from 5 days to 3 days a month earlier
+    - scoring_summary.log shows a benign slow-running-model warning that completed fine
+    - forecast_uplift_check.log shows a smaller -8% dip on 08-03 too (within the 10% tolerance) -- a real but weaker echo of the same missing-partition effect, easy to dismiss as noise
+
+  acceptable_fixes:
+    - description: |
+        Change the trailing-average feature loader to raise or exclude
+        a missing partition from the average (using a shorter window
+        over the days that do exist) instead of silently defaulting to
+        0.0, and block scoring for models that depend on a rolling
+        window with a known gap.
+    - description: |
+        Backfill a failed run's partition immediately upon detection
+        rather than deferring it to a future batch window, and add a
+        scheduling rule that refuses to let any rolling-window feature
+        include a partition that's known to be missing.
+  partial_credit_fixes:
+    - description: Add a pre-scoring completeness check that verifies every partition in a rolling window exists before scoring, alert-only
+    - description: Manually correct the 08-04 forecast after the fact using a corrected trailing average
+  verification: verify/test_fix.py
+
+# Anti-gaming: agent must name the mechanism, not just the symptom.
+required_answer_elements:
+  - identifies the missing 2026-08-02 partition (from the unbackfilled failure) as the trigger
+  - identifies the trailing-average feature loader's silent 0.0 fallback on a missing partition as the mechanism
+  - does not conclude the 2026-08-04 run itself failed or had a scoring bug -- scoring executed correctly on the wrong feature value it was given

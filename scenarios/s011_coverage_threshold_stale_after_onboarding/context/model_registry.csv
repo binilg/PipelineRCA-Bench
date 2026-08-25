@@ -1,0 +1,8 @@
+model_id,zone,active,registered_date
+M_Z_N,Z_N,true,2024-03-11
+M_Z_NE,Z_NE,true,2024-03-11
+M_Z_S,Z_S,true,2024-03-11
+M_Z_SE,Z_SE,true,2024-06-02
+M_Z_SW,Z_SW,true,2024-06-02
+M_Z_NW,Z_NW,true,2026-07-11
+# (260 individual SKU-group models roll up under these 6 zones; total active model count grew from 255 to 260 over the past two months)

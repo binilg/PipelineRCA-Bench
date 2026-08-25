@@ -1,0 +1,9 @@
+2026-08-13 02:41:04 INFO  [score_all_models] Run started. run_date=2026-08-13
+2026-08-13 02:41:04 INFO  [score_all_models] Catalog loaded: 1,884 SKUs, eligibility filters applied
+2026-08-13 03:05:22 INFO  [score_all_models] Scoring complete. 1,861,220 eligible sku-store rows scored. status=SUCCESS
+2026-08-13 03:07:40 INFO  [write_forecast_partition] Write complete. status=SUCCESS
+2026-08-13 03:07:41 INFO  [scoring_orchestrator] Run completed successfully. status=SUCCESS
+
+# Row count and task status are both nominal. The 47 combinations in
+# missing_combinations_report.csv were never attempted -- they were
+# filtered out before scoring began, per scoring_eligibility_rules.py.

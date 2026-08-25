@@ -1,0 +1,4 @@
+commit c92a41f  2026-07-18  Merchandising: add SEASONAL_PROMO sku_group to catalog (40 SKUs) for Q3 promo campaign
+commit 7f0a3bd  2026-07-15  Bump pandas pin to 2.2.3 in requirements.txt
+commit 4d1e9aa  2026-07-10  Fix typo in scoring_summary log message
+commit 91cc203  2026-06-01  Retrain demand_forecast_v4; regenerate training_config.yaml known_values from catalog snapshot

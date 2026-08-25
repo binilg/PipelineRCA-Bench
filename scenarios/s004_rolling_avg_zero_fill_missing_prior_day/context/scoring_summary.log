@@ -1,0 +1,6 @@
+2026-08-04 02:41:02 INFO  [score_all_models] Run started. run_date=2026-08-04
+2026-08-04 02:41:02 INFO  [score_all_models] Model registry loaded: 260 active models
+2026-08-04 02:52:19 WARN  [scoring_worker_11] M_0031 duration 118s (soft limit 90s) - completed
+2026-08-04 03:04:47 INFO  [score_all_models] Scoring complete. status=SUCCESS
+2026-08-04 03:05:10 INFO  [write_forecast_partition] Wrote 1,297,880 rows
+2026-08-04 03:05:10 INFO  [scoring_orchestrator] Run completed successfully. status=SUCCESS

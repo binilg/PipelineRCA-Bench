@@ -1,0 +1,11 @@
+# On-call action log (#forecast-ops channel, excerpted for run_date 2026-07-16)
+
+[2026-07-16 03:16] @j.tran: publish_to_warehouse failed on daily_forecast_scoring,
+run_date 2026-07-16 — looks like a network timeout to the warehouse API.
+Scoring and write both show green upstream. Going to clear and retry.
+
+[2026-07-16 03:22] @j.tran: $ airflow tasks clear daily_forecast_scoring -t publish_to_warehouse --upstream -d 2026-07-16 -y
+[2026-07-16 03:22] @j.tran: cleared with --upstream just to be safe in case anything
+upstream was stale from the timeout. rerunning now.
+
+[2026-07-16 03:56] @j.tran: rerun succeeded, all green. closing ticket.

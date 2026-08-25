@@ -1,0 +1,6 @@
+2026-08-03 04:10:01 INFO  [uplift_health_check] zone=Z_SE run_date=2026-08-03 uplift=+0.9% (threshold 10%) status=OK
+2026-08-04 04:10:03 WARN  [uplift_health_check] zone=Z_SE run_date=2026-08-04 uplift=-61.4% (threshold 10%) status=ALERT
+2026-08-05 04:10:02 WARN  [uplift_health_check] zone=Z_SE run_date=2026-08-05 uplift=-58.2% (threshold 10%) status=ALERT
+2026-08-06 04:10:04 WARN  [uplift_health_check] zone=Z_SE run_date=2026-08-06 uplift=-63.0% (threshold 10%) status=ALERT
+2026-08-07 04:10:03 WARN  [uplift_health_check] zone=Z_SE run_date=2026-08-07 uplift=-59.7% (threshold 10%) status=ALERT
+2026-08-07 04:10:03 INFO  [uplift_health_check] all other zones within normal range for 2026-08-07

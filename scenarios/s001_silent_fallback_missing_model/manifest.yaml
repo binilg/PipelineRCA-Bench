@@ -1,0 +1,71 @@
+id: s001
+title: Silent fallback to prior-day forecast after missing model artifact
+category: recovery_temporal_state
+difficulty: hard
+stack: [airflow, python, pandas]
+
+# What the agent is told. Note: no exception, no failed task.
+symptom: |
+  The daily_forecast_scoring DAG completed successfully at 03:14.
+  All tasks green. Row counts nominal.
+
+  A downstream fallback alert fired: 3 of 255 models emitted
+  fallback-sourced forecasts for run_date 2026-07-14.
+
+  Identify which models fell back, why, and what should be fixed.
+
+context_files:
+  - context/dag.py
+  - context/scoring_summary.log
+  - context/model_logs/          # 255 per-model logs; signal is in 3
+  - context/model_registry.csv
+  - context/output_sample.csv
+  - context/git_log.txt
+
+ground_truth:
+  root_cause: |
+    Three models (M_0147, M_0148, M_0149) had no trained artifact
+    available for run_date 2026-07-14. All three belong to zone Z_NW,
+    which was created by a territory realignment on 2026-07-11.
+
+    The training DAG's zone list is sourced from a static config that
+    was not updated when the new zone was introduced, so no models were
+    ever trained for Z_NW. The scoring DAG's per-model loader raised
+    FileNotFoundError for those three, which the fallback handler caught
+    and substituted with the prior day's forecasts (2026-07-13).
+
+    Because the fallback count (3) is below the tolerance threshold (5),
+    the DAG reported success and the summary log recorded no error.
+
+  causal_chain:
+    - territory realignment created new zone Z_NW on 2026-07-11
+    - training config zone list not updated, so no models trained for Z_NW
+    - scoring loader raised FileNotFoundError for the 3 Z_NW models
+    - fallback handler substituted prior-day forecasts and logged at model level only
+    - fallback count below tolerance threshold, so DAG reported success
+
+  # Plausible-but-wrong causes present in the context.
+  distractors:
+    - scoring_summary.log contains a benign memory warning on M_0088
+    - git_log.txt shows an unrelated refactor of the output writer on 2026-07-13
+    - two models (M_0031, M_0202) show elevated runtime but completed normally
+    - output_sample.csv contains a legitimate zero-demand row for a seasonal SKU
+
+  acceptable_fixes:
+    - description: |
+        Add zone Z_NW to the training config zone list so models are
+        trained for the new zone. Backfill training for Z_NW.
+    - description: |
+        Derive the training zone list dynamically from the zone dimension
+        table rather than static config, so new zones are picked up.
+  # Mitigations — accepted only when paired with a root fix above.
+  partial_credit_fixes:
+    - description: Fail loudly on missing artifact rather than falling back
+    - description: Alert on fallback regardless of count threshold
+  verification: verify/test_fix.py
+
+# Anti-gaming: agent must name the models AND the reason.
+required_answer_elements:
+  - identifies M_0147, M_0148, M_0149 (or zone Z_NW) as the fallback models
+  - identifies missing trained model artifact as the mechanism
+  - traces to zone Z_NW absent from training config after realignment

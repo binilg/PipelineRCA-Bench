@@ -1,0 +1,6 @@
+2026-08-01 02:58:10 INFO  [validation_rule] SKU_30011 forecast_qty=8412.0 clipped to 5000
+2026-08-01 02:58:10 INFO  [validation_rule] SKU_30012 forecast_qty=7220.0 clipped to 5000
+2026-08-01 02:58:11 INFO  [validation_rule] SKU_30013 forecast_qty=4110.0 -- within cap, no clipping
+2026-08-01 02:58:11 INFO  [validation_rule] SKU_30014 forecast_qty=9850.0 clipped to 5000
+2026-08-01 03:04:22 INFO  [score_all_models] Scoring complete. status=SUCCESS
+2026-08-01 03:04:22 INFO  [scoring_orchestrator] Run completed successfully. status=SUCCESS

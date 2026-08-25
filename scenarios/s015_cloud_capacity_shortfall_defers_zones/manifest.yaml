@@ -1,0 +1,81 @@
+id: s015
+title: A cluster autoscaler capacity shortfall silently dropped the last wave of zones from the run
+category: resource_capacity_lifecycle_failure
+difficulty: medium
+stack: [kubernetes, cloud-autoscaler, python]
+
+symptom: |
+  Over the past week, inventory has noticed a small, rotating subset of
+  zones seem to be missing forecasts on random days -- not consistently
+  the same zone, and each individual day's DAG run reported SUCCESS
+  with no failed tasks.
+
+  Identify why zones are intermittently missing from output and what
+  should be fixed.
+
+context_files:
+  - context/scheduler.py
+  - context/cloud_provider_status_page.txt
+  - context/scoring_summary.log
+  - context/weekly_zone_coverage.csv
+  - context/coverage_check.py
+  - context/git_log.txt
+
+ground_truth:
+  root_cause: |
+    The scoring DAG's worker pool relies on cluster autoscaling to
+    provision enough VMs for the day's zone fan-out. On days with a
+    regional cloud capacity shortfall for the required VM instance type
+    (a transient, provider-side constraint, not something the pipeline
+    caused), the autoscaler can only provision a subset of the needed
+    workers within the scheduling window. The orchestrator's scheduling
+    logic treats any zone task that couldn't get a worker assigned
+    before the deadline as "deferred," not "failed" -- a deliberate
+    design choice to avoid paging on-call for what's usually a
+    self-resolving transient blip. "Deferred" tasks are never
+    automatically picked up by a later run; each day's DAG only
+    processes that day's own zone list, so a zone deferred on one day is
+    simply never scored for that date unless someone manually reruns
+    it. Because the specific zones affected depend on which workers
+    happened to be available when the scheduler ran, the pattern looks
+    random day to day rather than pointing at one broken zone -- which
+    is why it took a week of accumulating gaps to notice.
+
+  causal_chain:
+    - a regional cloud capacity shortfall for the required VM instance type limits how many workers the autoscaler can provision within the scheduling window on a given day
+    - the scoring DAG's scheduler assigns zone tasks to available workers up to the deadline; any zone task without an assigned worker by the deadline is marked "deferred," not "failed"
+    - deferred zone tasks are dropped from that day's run; the DAG still reports SUCCESS for the zones it did complete
+    - there is no mechanism that automatically re-attempts a deferred zone on a later run -- each day's DAG only processes that day's own zone list
+    - which zones get deferred depends on worker-assignment order at scheduling time, which varies day to day, so the pattern of missing zones rotates rather than repeating
+    - the gaps only become noticeable in aggregate after several days of accumulated missing zone-days, since no single day's gap is large enough to trip the aggregate uplift/coverage checks on its own
+
+  # Plausible-but-wrong causes present in the context.
+  distractors:
+    - scoring_summary.log for each individual affected day shows all scheduled tasks completing successfully -- true, because deferred tasks are dropped from the schedule before they'd ever show as failed
+    - git_log.txt shows an unrelated commit adjusting the worker pool's instance type a month earlier, which looks newly relevant but predates the capacity shortfall by weeks
+    - cloud_provider_status_page.txt documents the regional capacity constraint as a known, provider-acknowledged issue -- real and the true trigger, but by itself doesn't explain why the pipeline's own gates didn't catch the resulting gaps
+    - coverage_check.py's threshold is calibrated against total row count, which barely dips when only 1-2 zones out of 260 are deferred on any given day -- individually invisible against the aggregate threshold
+
+  acceptable_fixes:
+    - description: |
+        Add an explicit end-of-run completeness check comparing the
+        full active-zone list against zones actually present in the
+        day's output, and automatically requeue any deferred/missing
+        zone for immediate rerun (or the next available capacity
+        window) rather than silently dropping it.
+    - description: |
+        Change the scheduler's "deferred" state to persist and carry
+        forward -- a zone deferred on one day should be prioritized in
+        the next run (or an out-of-band backfill) until it's actually
+        scored, instead of each day only considering that day's own
+        zone list.
+  partial_credit_fixes:
+    - description: Manually identify and backfill the accumulated missing zone-days once noticed
+    - description: Increase the default worker pool size / reserve capacity to reduce how often the shortfall occurs (reduces frequency, doesn't fix the silent-drop design gap)
+  verification: verify/test_fix.py
+
+# Anti-gaming: agent must explain the pattern, not just the trigger.
+required_answer_elements:
+  - identifies the regional VM capacity shortfall preventing full worker provisioning as the trigger
+  - identifies the "deferred, not failed, and never automatically retried" scheduling design as the mechanism that causes zones to be silently dropped rather than delayed
+  - explains why the pattern looks random/rotating rather than isolated to one broken zone, and why it wasn't caught sooner (individually small gaps below aggregate check thresholds)

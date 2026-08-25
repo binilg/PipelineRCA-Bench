@@ -1,0 +1,75 @@
+id: s013
+title: A storage lifecycle policy archived a reference file the pipeline still depended on
+category: resource_capacity_lifecycle_failure
+difficulty: easy
+stack: [python, cloud-storage]
+
+symptom: |
+  The daily_forecast_scoring DAG failed outright on 2026-08-14 with
+  FileNotFoundError reading holiday_calendar_reference.csv, a file
+  required to flag public holidays for demand adjustment. This file has
+  been in place for years and nobody has touched it recently.
+
+  Identify why a long-stable file suddenly became unreadable and what
+  should be fixed.
+
+context_files:
+  - context/dag.py
+  - context/error_log.txt
+  - context/storage_lifecycle_policy.yaml
+  - context/on_call_notes.txt
+  - context/git_log.txt
+
+ground_truth:
+  root_cause: |
+    holiday_calendar_reference.csv is stored in a shared reference-data
+    bucket that a platform team manages with a generic lifecycle
+    policy: objects with no modification in 90 days move to cold
+    storage, which the pipeline's service role can't read directly.
+    The file was last modified when it was originally created; the
+    forecasting pipeline reads it every day but never modifies it, so
+    from the storage system's perspective it's "untouched for 90+ days"
+    and got auto-archived by the lifecycle policy -- unrelated to
+    anything the forecasting team did. The pipeline's own logs only
+    show a generic FileNotFoundError, with no indication of why the
+    file is gone; that context only exists in the platform team's
+    lifecycle policy config.
+
+  causal_chain:
+    - holiday_calendar_reference.csv is created once and never modified again, only read daily by the pipeline
+    - the storage bucket has a generic 90-day "move to cold storage if unmodified" lifecycle policy, managed by a separate platform team unaware of this pipeline's dependency
+    - 90+ days after creation, the file is automatically moved to cold storage per policy
+    - the pipeline's service role has read access to the standard-tier bucket but not to cold storage, so the next read attempt fails
+    - the DAG fails outright on 2026-08-14 with FileNotFoundError, with no information in the pipeline's own logs about why a long-stable file suddenly vanished
+    - the actual explanation (the lifecycle policy) exists only in the platform team's config, not anywhere the forecasting team routinely looks
+
+  # Plausible-but-wrong causes present in the context.
+  distractors:
+    - git_log.txt shows an unrelated commit touching a different reference file the same month
+    - error_log.txt's stack trace only shows a generic FileNotFoundError from the storage SDK, giving no hint that it's archival-related rather than accidental deletion
+    - on_call_notes.txt shows the on-call engineer's first hypothesis was "someone deleted it by accident" -- a reasonable but incorrect guess without checking the bucket's lifecycle policy
+    - the pipeline's own deploy history shows no changes around 2026-08-14 -- correctly rules out a pipeline-side regression, but doesn't by itself explain the disappearance
+
+  acceptable_fixes:
+    - description: |
+        Move pipeline-critical reference files to a bucket/prefix
+        explicitly excluded from generic lifecycle policies (or tag
+        them as pipeline dependencies so platform-team policies skip
+        them), and add a lightweight daily "touch" or re-upload step
+        for files the pipeline depends on but never itself modifies.
+    - description: |
+        Establish a cross-team dependency registry so the platform
+        team's storage lifecycle policies get checked against known
+        pipeline dependencies before applying broadly, and subscribe
+        the pipeline team to lifecycle/archival notifications for
+        buckets it depends on.
+  partial_credit_fixes:
+    - description: Manually restore the file from cold storage / re-upload it to unblock the immediate failure
+    - description: Add a fallback that uses a cached local copy of the reference file if the primary read fails
+  verification: verify/test_fix.py
+
+# Anti-gaming: agent must identify the actual mechanism, not just "file missing."
+required_answer_elements:
+  - identifies the storage lifecycle policy (90-day unmodified-object archival) as the reason the file became unreadable, not accidental deletion
+  - identifies that the file being read-only (never modified) is what made it eligible for the policy despite being actively used daily
+  - does not conclude this was a pipeline code regression -- the pipeline itself didn't change; the storage layer's policy did

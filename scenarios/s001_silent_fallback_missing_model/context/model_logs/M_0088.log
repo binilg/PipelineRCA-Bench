@@ -1,0 +1,4 @@
+2026-07-14 02:52:01 INFO  [M_0088] Scoring start. zone=Z_SE run_date=2026-07-14
+2026-07-14 02:52:01 INFO  [M_0088] Artifact loaded: /models/prod/Z_SE/M_0088/2026-07-14/model.pkl
+2026-07-14 02:58:33 WARN  [M_0088] Peak memory 6.2GB exceeds soft limit 6.0GB
+2026-07-14 02:58:41 INFO  [M_0088] Scoring complete. status=OK rows=18422

@@ -1,0 +1,3 @@
+2026-07-14 02:41:20 INFO  [M_0001] Scoring start. zone=Z_N run_date=2026-07-14
+2026-07-14 02:41:20 INFO  [M_0001] Artifact loaded: /models/prod/Z_N/M_0001/2026-07-14/model.pkl
+2026-07-14 02:43:02 INFO  [M_0001] Scoring complete. status=OK rows=19883

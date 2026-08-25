@@ -1,0 +1,4 @@
+commit a20f9c1  2026-08-09  Add clarifying comment to scoring_eligibility_rules.py (no logic change)
+commit 6c4b1e0  2025-11-03  Add is_not_discontinued() eligibility filter
+commit 3f9a028  2025-02-20  Add is_ranged_at_store() eligibility filter
+commit 90d1c77  2024-08-01  Initial scoring_eligibility_rules.py (sales history + active date filters)

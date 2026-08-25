@@ -1,0 +1,5 @@
+2026-08-04 02:41:10 INFO  [score_all_models] Run started. run_date=2026-08-04
+2026-08-04 02:41:10 INFO  [score_all_models] SKU catalog loaded: 1,861 active SKUs across 6 zone models
+2026-08-04 03:05:22 INFO  [score_all_models] zone=Z_SE scored 312 SKUs. status=SUCCESS
+2026-08-04 03:12:47 INFO  [score_all_models] Scoring complete. status=SUCCESS
+2026-08-04 03:13:02 INFO  [scoring_orchestrator] Run completed successfully. status=SUCCESS

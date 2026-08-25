@@ -1,0 +1,8 @@
+$ python backfill_cli.py --start-date 2026-07-28 --days 4
+Reprocessing 4 run_date(s): ['2026-07-28', '2026-07-29', '2026-07-30', '2026-07-31']
+
+2026-07-29 10:02:11 INFO  Reprocessing run_date=2026-07-28 ... done. Wrote 1,296,410 rows.
+2026-07-29 10:04:47 INFO  Reprocessing run_date=2026-07-29 ... done. Wrote 1,301,220 rows.
+2026-07-29 10:07:15 INFO  Reprocessing run_date=2026-07-30 ... done. Wrote 1,298,905 rows.
+2026-07-29 10:09:52 INFO  Reprocessing run_date=2026-07-31 ... done. Wrote 1,303,110 rows.
+2026-07-29 10:09:52 INFO  Backfill complete. 4/4 run_dates reprocessed successfully.

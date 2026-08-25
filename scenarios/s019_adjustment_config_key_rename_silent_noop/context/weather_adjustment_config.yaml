@@ -1,0 +1,8 @@
+# Renamed 2026-07-24 as part of a config-schema naming-consistency
+# cleanup (all other sections use the "<noun>_enabled" pattern).
+weather_adjustment:
+  zones_enabled: [Z_N, Z_NE, Z_S, Z_SE, Z_SW, Z_NW]
+  max_lookback_days: 14
+  # enabled_zones (the old key name) intentionally removed -- readers
+  # were expected to be updated in the same change. adjustment_pipeline.py
+  # was not.

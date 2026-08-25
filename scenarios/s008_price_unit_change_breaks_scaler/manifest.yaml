@@ -1,0 +1,87 @@
+id: s008
+title: Forecasts for one zone collapsed after an upstream currency-unit change wasn't reflected in the feature scaler
+category: train_serving_skew
+difficulty: hard
+stack: [python, pandas, scikit-learn]
+
+symptom: |
+  The daily_forecast_scoring DAG ran green every day this week. No
+  exceptions, no schema validation failures -- avg_unit_price is still
+  a valid float on every row.
+
+  The forecast uplift health check has been flagging zone Z_SE
+  specifically for four straight days: forecasts for Z_SE are running
+  far outside its normal range, while every other zone is within normal
+  bounds.
+
+  Identify why Z_SE's forecasts broke and what should be fixed.
+
+context_files:
+  - context/feature_pipeline.py
+  - context/training_config.yaml
+  - context/pricing_system_migration_notice.txt
+  - context/feature_manifest.yaml
+  - context/forecast_uplift_check.log
+  - context/scoring_summary.log
+  - context/git_log.txt
+
+ground_truth:
+  root_cause: |
+    On 2026-08-04, the upstream pricing system for zone Z_SE migrated
+    avg_unit_price reporting from cents to dollars, as part of an
+    unrelated source-system consolidation run by the finance/billing
+    team. Nobody on the ML side was informed, because the change was
+    communicated only as a billing-reporting change, not a data
+    contract change.
+
+    The feature pipeline has no unit or range validation on
+    avg_unit_price -- any float passes straight through to
+    StandardScaler.transform(), which was fit at training time on
+    cents-scale statistics (mean ~1500, std ~800). After the migration,
+    dollar-scale values (mean ~15, std ~8) are roughly 100x smaller than
+    what the scaler expects, producing z-scores far outside anything the
+    model saw during training, specifically for Z_SE. The model
+    extrapolates unpredictably on this out-of-distribution input,
+    producing forecasts far outside Z_SE's normal range. No exception is
+    raised anywhere -- avg_unit_price is still a valid float and scaling
+    is still a valid arithmetic operation -- so the DAG reports success
+    and the issue only surfaces through the uplift/accuracy check.
+
+  causal_chain:
+    - upstream pricing system for Z_SE migrates avg_unit_price reporting from cents to dollars on 2026-08-04, an unrelated billing-system consolidation
+    - the feature pipeline has no unit or range validation on avg_unit_price -- any float passes through unchanged
+    - StandardScaler.transform(), fit at training time on cents-scale statistics, is applied to the now dollar-scale values
+    - the resulting z-scores fall far outside the training distribution's range for this feature, specifically for Z_SE
+    - the model, given an out-of-distribution feature value, produces forecasts far outside its normal range for Z_SE only
+    - no exception is raised anywhere -- the DAG reports SUCCESS and the issue only surfaces through the uplift check
+
+  # Plausible-but-wrong causes present in the context.
+  distractors:
+    - git_log.txt shows an unrelated commit retraining a different zone's model the same week
+    - pricing_system_migration_notice.txt frames the currency-unit change purely as a billing/finance reporting matter, giving no indication it would touch ML features at all
+    - "feature_manifest.yaml lists avg_unit_price as \"type: float, unit: currency\" -- technically accurate both before and after the migration, doesn't flag that the unit actually changed"
+    - scoring_summary.log shows totally normal execution times and row counts for Z_SE -- nothing about the run itself looks wrong
+
+  acceptable_fixes:
+    - description: |
+        Add explicit unit/range validation (or a feature-level drift
+        check) on numeric features like avg_unit_price -- flag or
+        reject values that fall far outside the training-time
+        distribution before they reach the scaler, and refit the
+        scaler once the new unit is confirmed as the new standard.
+    - description: |
+        Establish a data contract for source systems feeding ML
+        features (unit, scale, expected range) with a required
+        notification/validation step before any upstream schema or
+        unit change goes live, so unit changes can't silently reach
+        the feature pipeline unflagged.
+  partial_credit_fixes:
+    - description: Add post-hoc monitoring on feature-level distribution drift (catches it, doesn't prevent it)
+    - description: Manually rescale/correct Z_SE's avg_unit_price values after the fact for the affected date range
+  verification: verify/test_fix.py
+
+# Anti-gaming: agent must name the mechanism and rule out the neighboring scenarios.
+required_answer_elements:
+  - identifies the avg_unit_price unit change (cents to dollars) for zone Z_SE as the trigger
+  - identifies the stale StandardScaler (fit on the old unit's statistics) producing out-of-distribution z-scores as the mechanism
+  - does not conclude this is a missing/untrained model or a categorical encoding issue -- the model and encoders are all present and correctly configured; the defect is a numeric feature's silent unit drift

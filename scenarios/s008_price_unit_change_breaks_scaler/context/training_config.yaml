@@ -1,0 +1,10 @@
+model_family: demand_forecast_v4
+trained_on: 2026-06-01
+training_data_window: 2025-06-01 to 2026-05-31
+
+feature_scalers:
+  avg_unit_price:
+    type: standard_scaler
+    mean: 1500.0     # cents
+    std: 150.0        # cents -- prices cluster tightly around the mean for this SKU mix
+    fit_on_unit: cents

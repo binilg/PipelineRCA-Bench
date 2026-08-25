@@ -1,0 +1,69 @@
+id: s017
+title: A new upload dependency worked in dev but was never added to the prod build manifest
+category: change_management_failure
+difficulty: easy
+stack: [python, ci-cd]
+
+symptom: |
+  The upload_to_warehouse task in daily_forecast_scoring failed
+  immediately this morning with ImportError: No module named
+  'fastparquet_writer'. The task had been passing every day for months.
+
+  Identify why a previously-working task suddenly can't import a
+  library, and what should be fixed.
+
+context_files:
+  - context/upload_task.py
+  - context/error_log.txt
+  - context/requirements_prod.txt
+  - context/dev_environment_notes.txt
+  - context/git_log.txt
+
+ground_truth:
+  root_cause: |
+    A commit switched the upload task from the standard pyarrow-based
+    parquet writer to fastparquet_writer for faster writes. The engineer
+    developed and tested this change in their local dev environment,
+    where fastparquet_writer had been pip-installed manually months
+    earlier for an unrelated experiment and was never removed. Because
+    it was already present locally, the change worked in dev without
+    any setup step, and the engineer didn't realize a new dependency had
+    been introduced. requirements_prod.txt -- the actual source of truth
+    for what ships in the prod container image -- was never updated, so
+    the next prod deploy built an image without fastparquet_writer,
+    and the upload task failed on its very first run against that image.
+
+  causal_chain:
+    - fastparquet_writer had been manually pip-installed in the engineer's local dev environment months earlier for an unrelated experiment, and was never removed
+    - a commit switches upload_task.py from the standard pyarrow-based writer to fastparquet_writer for faster writes
+    - the change is tested locally and works, because the library is already present in dev -- nothing in the local test run reveals that a new dependency was introduced
+    - requirements_prod.txt, the source of truth for the prod container build, is never updated to include fastparquet_writer
+    - the change is merged and deployed; the next prod build produces a container image without fastparquet_writer
+    - upload_to_warehouse fails with ImportError on its first run against the new image -- the first time this exact code path executes in an environment where the library was never implicitly present
+
+  # Plausible-but-wrong causes present in the context.
+  distractors:
+    - git_log.txt shows an unrelated dependency bump (requests library) in the same week
+    - error_log.txt's traceback point is inside upload_task.py itself, which looks like an application bug rather than a packaging gap
+    - dev_environment_notes.txt shows the dev environment's pip freeze output is months old and was never diffed against requirements_prod.txt before this incident
+    - requirements_prod.txt is alphabetically sorted and looks complete and well-maintained at a glance
+
+  acceptable_fixes:
+    - description: |
+        Add fastparquet_writer to requirements_prod.txt (pinned to the
+        version tested in dev) and rebuild/redeploy the prod image.
+    - description: |
+        Add a CI check that diffs actual runtime imports against
+        requirements_prod.txt (or builds and smoke-tests against the
+        exact prod container image before merge) so a new dependency
+        introduced by a code change can never reach prod undetected.
+  partial_credit_fixes:
+    - description: Revert the upload task to the previous pyarrow-based writer (unblocks the task, forgoes the performance improvement)
+    - description: Manually install the missing library on the prod host as a one-off (unblocks this run, doesn't survive the next image rebuild)
+  verification: verify/test_fix.py
+
+# Anti-gaming: agent must name the mechanism, not just "a library is missing."
+required_answer_elements:
+  - identifies fastparquet_writer as the missing library and the switch to it as the trigger
+  - identifies that the library was already present in the engineer's dev environment (from an unrelated prior install), which is why local testing didn't catch the gap
+  - identifies requirements_prod.txt never being updated as the mechanism, not a transient environment glitch

@@ -1,0 +1,12 @@
+$ pytest test_stability_check.py -v
+
+test_stability_check.py::test_compute_psi_identical_distributions PASSED
+test_stability_check.py::test_compute_psi_shifted_distribution PASSED
+test_stability_check.py::test_compute_psi_threshold_blocks_run PASSED
+
+3 passed in 0.41s
+
+# Note: all three tests call compute_psi() directly with hand-constructed
+# DataFrames. None of them exercise _reference_date() or the file-loading
+# path in run_stability_check() -- the date-resolution logic that selects
+# which partition is "yesterday" is untested.

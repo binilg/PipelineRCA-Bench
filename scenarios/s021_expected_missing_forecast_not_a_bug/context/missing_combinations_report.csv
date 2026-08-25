@@ -1,0 +1,20 @@
+# Downstream-submitted report of sku-store combinations with no forecast
+# row for run_date=2026-08-13. 47 combinations total; representative
+# sample of 16 shown below (full list attached in the original ticket).
+sku_id,store_id
+SKU_40011,ST_0212
+SKU_40012,ST_0212
+SKU_40013,ST_0088
+SKU_40014,ST_0088
+SKU_50201,ST_0044
+SKU_50202,ST_0044
+SKU_50203,ST_0091
+SKU_10233,ST_0300
+SKU_10233,ST_0301
+SKU_10233,ST_0302
+SKU_10388,ST_0155
+SKU_10388,ST_0156
+SKU_10388,ST_0157
+SKU_10388,ST_0158
+SKU_20601,ST_0067
+SKU_20602,ST_0067

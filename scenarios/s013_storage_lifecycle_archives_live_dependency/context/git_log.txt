@@ -1,0 +1,3 @@
+commit 3f8c1a0  2026-08-05  Update promo_calendar_reference.csv for Q3 promos (unrelated file)
+commit 90c4e2b  2026-04-20  Add holiday_calendar_reference.csv for public-holiday demand adjustment
+commit d7b1f6a  2026-01-10  Initial reference-data bucket setup

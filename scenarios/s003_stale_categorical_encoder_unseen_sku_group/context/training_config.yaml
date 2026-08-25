@@ -1,0 +1,12 @@
+model_family: demand_forecast_v4
+trained_on: 2026-06-01
+training_data_window: 2025-06-01 to 2026-05-31
+next_scheduled_retrain: 2026-10-01
+
+feature_encoders:
+  sku_group:
+    type: categorical_lookup
+    known_values: [GROCERY, CHILLED, FROZEN, BAKERY, PRODUCE, HOUSEHOLD]
+  zone:
+    type: categorical_lookup
+    known_values: [Z_N, Z_NE, Z_S, Z_SE, Z_SW, Z_NW]

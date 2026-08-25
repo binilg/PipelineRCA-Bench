@@ -1,0 +1,6 @@
+adjustment_model:
+  retrain_schedule: weekly
+  trailing_window_weeks: 6
+  anomaly_exclusion: false        # no mechanism to flag/exclude one-off event weeks
+  max_negative_adjustment_pct: null  # uncapped
+  decay_on_event_end: false       # adjustments are not tied to any event window

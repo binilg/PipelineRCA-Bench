@@ -1,0 +1,73 @@
+id: s005
+title: Zone actuals feed didn't land for a public holiday, so demand was scored as zero
+category: recovery_temporal_state
+difficulty: easy
+stack: [airflow, python, pandas]
+
+symptom: |
+  The daily_forecast_scoring DAG for run_date 2026-08-05 shows all tasks
+  green. No exceptions recorded.
+
+  The nightly forecast uplift health check flagged -18% total forecast
+  volume versus the prior day (threshold 10%). Regional ops separately
+  flags that zone Z_SW's forecasts for 2026-08-05 look unusually low
+  compared to trend.
+
+  Identify why Z_SW's forecasts collapsed and what should be fixed.
+
+context_files:
+  - context/dag.py
+  - context/vendor_feed_status.txt
+  - context/scoring_summary.log
+  - context/forecast_uplift_check.log
+  - context/row_counts.csv
+  - context/git_log.txt
+
+ground_truth:
+  root_cause: |
+    Zone Z_SW's point-of-sale actuals feed is provided by a third-party
+    vendor that was closed for a public holiday on 2026-08-05, so no
+    actuals rows landed for that zone/date. The ingestion job's LEFT
+    JOIN against the actuals table silently returns no match for Z_SW
+    rather than raising, and the feature builder fills any missing
+    actuals with 0.0 ("no sales") instead of distinguishing "no data
+    available" from "genuinely zero sales." Z_SW's models are then
+    scored against a feature set implying a total demand collapse,
+    producing an artificially low forecast for that zone only. Other
+    zones are unaffected because their vendor feeds landed normally.
+
+  causal_chain:
+    - Z_SW's point-of-sale vendor is closed for a public holiday on 2026-08-05; no actuals rows land for that zone/date
+    - the ingest job's LEFT JOIN against actuals silently returns no match for Z_SW rather than raising
+    - the feature builder fills missing actuals with 0.0 instead of flagging "no data available"
+    - Z_SW's models score against a feature set implying a demand collapse
+    - Z_SW's forecast comes out far below trend; other zones are unaffected since their feeds landed
+    - Z_SW's contribution alone pulls the blended uplift check to -18%, past the 10% threshold
+
+  # Plausible-but-wrong causes present in the context.
+  distractors:
+    - git_log.txt shows an unrelated commit the same week adjusting a different zone's territory boundary
+    - scoring_summary.log shows a slow-running-model warning for a model in Z_N, unrelated and completed normally
+    - row_counts.csv's total row count for 08-05 looks nominal -- Z_SW's SKUs still get scored, just with wrong feature values, so checking only total rows misses it
+
+  acceptable_fixes:
+    - description: |
+        Distinguish "no actuals data available" from "zero actuals" in
+        the feature builder -- use a sentinel/NaN for missing data and
+        either impute from a longer trailing average or skip scoring
+        the affected zone until real data lands, rather than defaulting
+        to 0.0.
+    - description: |
+        Add a per-zone data-completeness check before scoring that
+        blocks or flags any zone whose actuals feed didn't land for
+        run_date, rather than relying only on an aggregate row count.
+  partial_credit_fixes:
+    - description: Alert on per-zone forecast deviation beyond a threshold (would catch it, doesn't fix the root cause)
+    - description: Manually override Z_SW's forecast for 08-05 using the prior week's same-day value
+  verification: verify/test_fix.py
+
+# Anti-gaming: agent must name the zone AND the mechanism.
+required_answer_elements:
+  - identifies zone Z_SW and the missing 2026-08-05 vendor feed as the trigger
+  - identifies the 0.0 default for missing actuals (vs. missing data being treated as truly zero) as the mechanism
+  - does not conclude the issue affects all zones or is a global data problem -- it is isolated to Z_SW

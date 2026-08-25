@@ -1,0 +1,17 @@
+# Catalog entries for the SKUs referenced in missing_combinations_report.csv.
+sku_id,sku_group,effective_date,sales_history_days,status
+SKU_40011,GROCERY,2026-08-10,3,active
+SKU_40012,GROCERY,2026-08-10,3,active
+SKU_40013,CHILLED,2026-08-11,2,active
+SKU_40014,CHILLED,2026-08-11,2,active
+SKU_50201,HOUSEHOLD,2026-09-01,0,active
+SKU_50202,HOUSEHOLD,2026-09-01,0,active
+SKU_50203,HOUSEHOLD,2026-09-15,0,active
+SKU_10233,BAKERY,2024-06-12,780,active
+SKU_10388,PRODUCE,2024-06-12,780,active
+SKU_20601,GROCERY,2023-01-05,940,discontinued
+SKU_20602,GROCERY,2023-01-05,940,discontinued
+
+# scoring_eligibility_rules.py's MIN_SALES_HISTORY_DAYS threshold is 14.
+# effective_date in the future relative to run_date=2026-08-13 means
+# the SKU is not yet active for scoring.

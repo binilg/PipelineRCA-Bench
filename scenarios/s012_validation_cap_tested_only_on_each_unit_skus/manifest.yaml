@@ -1,0 +1,80 @@
+id: s012
+title: A validation rule tested only against dev-region data silently clipped legitimate forecasts for bulk SKUs
+category: data_quality_gate_failure
+difficulty: hard
+stack: [python, pandas]
+
+symptom: |
+  No pipeline error, no alert, no failed task at any point over the
+  past several weeks. Inventory planning has noticed a recurring
+  stockout pattern for a specific handful of high-volume SKUs in zone
+  Z_SW -- actuals consistently well above forecast for those SKUs,
+  week after week, while every other SKU in Z_SW forecasts normally.
+
+  Investigate why these specific SKUs are persistently under-forecast.
+
+context_files:
+  - context/validation_rule.py
+  - context/dev_test_dataset_summary.txt
+  - context/sku_catalog.csv
+  - context/scoring_summary.log
+  - context/inventory_stockout_report.csv
+  - context/git_log.txt
+
+ground_truth:
+  root_cause: |
+    The forecast_qty validation rule (added to catch a genuine class of
+    bug: model outputs that are absurdly high due to a scoring error)
+    enforces a hardcoded per-SKU daily cap of 5,000 units, silently
+    clipping -- not rejecting or alerting on -- any forecast above that
+    ceiling. The cap was chosen and tested using the dev/staging
+    dataset, which contains only "each"-unit SKUs, where 5,000/day is
+    comfortably above any legitimate forecast. Production also includes
+    case-unit SKUs (concentrated in zone Z_SW) whose legitimate forecast
+    volumes, expressed on the same units-basis, regularly exceed
+    5,000/day for genuinely high-turnover items. Since dev never had a
+    single case-unit SKU in its test data, this behavior was never
+    exercised before shipping. In production, the validation rule
+    quietly clips these SKUs' forecasts down to 5,000/day whenever their
+    true forecast exceeds it, with no error, warning, or log
+    distinguishing "clipped a real value" from "no clipping needed" --
+    so the systematic under-forecast has no signal anywhere in the
+    pipeline's own logs.
+
+  causal_chain:
+    - a forecast_qty validation rule is added with a hardcoded per-SKU cap of 5,000 units/day, designed to catch scoring bugs that produce absurdly high output
+    - the rule is developed and tested exclusively against the dev/staging dataset, which contains only each-unit SKUs with typical forecasts well under 5,000/day
+    - the rule ships to production, where it also runs against case-unit SKUs (concentrated in zone Z_SW) whose legitimate, correctly-modeled forecasts regularly exceed 5,000/day
+    - for those SKUs, the model's true (correct) forecast gets silently clipped down to the 5,000 cap, with clipping logged identically to a normal pass
+    - there is no case-unit-vs-each-unit distinction anywhere in the validation logic or its logging, so a clipped high-volume SKU is indistinguishable in the logs from any other successfully-validated SKU
+    - over successive days, these specific SKUs are systematically under-forecast, eventually surfacing as a recurring stockout pattern noticed by inventory planning, with no direct pipeline signal pointing at validation
+
+  # Plausible-but-wrong causes present in the context.
+  distractors:
+    - git_log.txt shows the validation rule's introduction commit linking to the dev-environment test suite that passed -- real, easy to read as "this was properly tested" without checking what data the suite actually contained
+    - scoring_summary.log shows validation as PASS for every SKU on every affected day -- clipping isn't logged as a distinct outcome from normal validation
+    - inventory_stockout_report.csv shows the affected SKUs' stockouts trending alongside normal seasonal demand upticks for the category -- superficially explainable as seasonal demand, delaying the realization that it's isolated to specific SKUs
+    - sku_catalog.csv shows the case-unit SKUs flagged with a unit_type column (CASE vs EACH) -- the information needed to explain the discrepancy is present in the data, but nothing in the validation rule actually reads or uses that column
+
+  acceptable_fixes:
+    - description: |
+        Make the validation cap unit-aware -- read unit_type from the
+        SKU catalog and apply a per-unit-type (or per-SKU-tier) cap
+        instead of one global hardcoded number, and expand the
+        dev/test dataset to include representative case-unit SKUs so
+        this class of gap is caught before shipping.
+    - description: |
+        Change clipping to alerting -- when a forecast exceeds the
+        cap, flag/alert for human review instead of silently clipping
+        and continuing, so a genuinely legitimate high forecast is
+        never silently altered without visibility.
+  partial_credit_fixes:
+    - description: Raise the global cap to a higher number that happens to cover current case-unit SKU volumes (treats the symptom, will likely need re-tuning again as volumes grow)
+    - description: Manually override forecasts for the known affected SKUs going forward
+  verification: verify/test_fix.py
+
+# Anti-gaming: agent must name the mechanism and the population affected.
+required_answer_elements:
+  - identifies the hardcoded 5,000-unit validation cap silently clipping (not rejecting/alerting) high-volume case-unit SKUs as the mechanism
+  - identifies that the validation rule was tested only against dev data containing exclusively each-unit SKUs, which is why the gap was never caught before production
+  - names case-unit SKUs in zone Z_SW (or references the unit_type column) as the specific population affected, not a general model-accuracy issue

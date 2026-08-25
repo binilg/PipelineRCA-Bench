@@ -1,0 +1,9 @@
+# Weather event log (external feed, informational only -- not
+# currently consumed by adjustment_model.py)
+
+2026-07-06 to 2026-07-09: Severe storm, zone Z_SE. Regional weather
+service confirmed high winds and flooding advisories. Multiple stores
+in Z_SE reported reduced footfall during this window.
+
+2026-07-10 onward: Weather in Z_SE back to seasonal normal. No further
+weather advisories issued for Z_SE through 2026-08-13.

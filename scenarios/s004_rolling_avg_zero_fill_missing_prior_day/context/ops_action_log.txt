@@ -1,0 +1,16 @@
+# On-call action log (#forecast-ops channel, excerpted)
+
+[2026-08-02 03:10] @r.singh: daily_forecast_scoring failed for run_date 2026-08-02 --
+score_all_models raised OperationalError, transient DB connection drop to the
+actuals warehouse. Task retried twice automatically, still failed.
+
+[2026-08-02 03:22] @r.singh: DB team confirms it was a transient connection pool
+exhaustion on their side, already resolved. No partition was written for
+2026-08-02.
+
+[2026-08-02 03:25] @r.singh: not going to backfill same-day, low priority --
+we do a weekly backfill sweep every Friday, I'll let it pick this up then.
+Logged in the backfill tracker.
+
+[2026-08-04 09:40] @j.tran: uplift check is flagging -42% for today (08-04),
+that's way past threshold. Looking into it now.

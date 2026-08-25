@@ -1,0 +1,3 @@
+commit 4b7e2a1  2026-07-22  Rotate acme_retail_partner API auth token per security policy
+commit c1a90f3  2026-06-18  retailer_beta integration: add idempotency_key to notify_partner_webhook call
+commit 77d0e6a  2026-05-30  Initial acme_retail_partner upload + notify implementation

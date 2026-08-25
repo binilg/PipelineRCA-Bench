@@ -1,0 +1,88 @@
+id: s003
+title: Forecast accuracy collapse for a newly added SKU group due to a stale categorical encoder
+category: train_serving_skew
+difficulty: medium
+stack: [airflow, python, pandas]
+
+# What the agent is told. Note: no exception, no failed task, no missing model.
+symptom: |
+  The daily_forecast_scoring DAG completed successfully at 03:07 for
+  run_date 2026-07-20. All tasks green. Row counts nominal (1,842 rows,
+  matching the active SKU count).
+
+  Three days later, once actuals landed, the forecast accuracy monitor
+  flagged MAPE of 187.4% for sku_group=SEASONAL_PROMO (threshold 35%) --
+  40 SKUs, spanning all six zones. Every other sku_group is within
+  normal accuracy range (8.4% MAPE).
+
+  Identify why forecasts for the SEASONAL_PROMO SKUs are so far off and
+  what should be fixed.
+
+context_files:
+  - context/dag.py
+  - context/feature_pipeline.py
+  - context/training_config.yaml
+  - context/sku_catalog.csv          # representative sample of 1,842 active SKUs
+  - context/model_registry.csv
+  - context/scoring_summary.log
+  - context/forecast_accuracy_alert.log
+  - context/git_log.txt
+
+ground_truth:
+  root_cause: |
+    On 2026-07-18, merchandising added a new sku_group, SEASONAL_PROMO
+    (40 SKUs across all six zones), to the product catalog for a Q3
+    promo campaign. The demand_forecast_v4 model family was last
+    retrained on 2026-06-01, seven weeks before SEASONAL_PROMO existed,
+    so training_config.yaml's known categorical values for sku_group
+    never included it.
+
+    feature_pipeline.py's encode_sku_group() looks up each SKU's
+    sku_group in that fixed index and falls back to index 0 ("GROCERY")
+    for any value it doesn't recognize, instead of raising an error.
+    Because scoring never fails, the DAG ran green for
+    run_date=2026-07-20 and wrote all 1,842 rows -- 40 of them for
+    SEASONAL_PROMO SKUs silently scored as if they were GROCERY items,
+    which have a completely different demand pattern than a short-lived
+    promo SKU. The mis-encoding produced forecasts wildly off from
+    actual demand once the promo sales landed, and nothing in the
+    scoring run itself surfaced the problem because catalog loading,
+    feature building, and scoring all "succeeded."
+
+  causal_chain:
+    - merchandising adds sku_group=SEASONAL_PROMO (40 SKUs) to the catalog on 2026-07-18
+    - demand_forecast_v4's training_config.yaml was last generated 2026-06-01 and has no SEASONAL_PROMO entry
+    - encode_sku_group() falls back unseen categories to index 0 (GROCERY) instead of raising
+    - SEASONAL_PROMO SKUs are scored using GROCERY's learned demand pattern for run_date=2026-07-20
+    - scoring, writing, and the DAG all report SUCCESS since no exception was ever raised
+    - accuracy_monitor catches the mismatch 3 days later once actuals arrive, isolated to sku_group=SEASONAL_PROMO
+
+  # Plausible-but-wrong causes present in the context.
+  distractors:
+    - git_log.txt shows an unrelated commit bumping the pandas pin the same week
+    - git_log.txt shows an unrelated log-message typo fix close to the incident date
+    - model_registry.csv shows all six zone models present and active -- correctly rules out a missing-model story like s001, but easy to over-focus on
+    - scoring_summary.log shows the SKU count grew to 1,842 -- real (the 40 new SKUs), but the row count itself is nominal and doesn't by itself explain a 187% MAPE
+
+  acceptable_fixes:
+    - description: |
+        Retrain / refit the sku_group encoder (and the model) on a
+        training set that includes SEASONAL_PROMO, so it gets its own
+        learned representation instead of borrowing GROCERY's.
+    - description: |
+        Change encode_sku_group() to raise/flag on an unseen category
+        instead of defaulting to index 0, and route SKUs with unseen
+        categories to a quarantine or rules-based fallback path until
+        the encoder/model is retrained, rather than scoring them with
+        the wrong bucket.
+  # Mitigations — accepted only when paired with a root fix above.
+  partial_credit_fixes:
+    - description: Add a pre-launch drift check that diffs the catalog's categorical values against training_config.yaml's known_values and alerts on any new category before the next scoring run
+    - description: Manually correct/override the SEASONAL_PROMO forecasts after the fact for the affected run_date
+  verification: verify/test_fix.py
+
+# Anti-gaming: agent must name the category AND the mechanism, not just the symptom.
+required_answer_elements:
+  - identifies SEASONAL_PROMO as the affected sku_group and the encoder trained on 2026-06-01 as stale relative to its 2026-07-18 introduction
+  - identifies the silent fallback in encode_sku_group() (unseen category -> index 0 / GROCERY) as the mechanism, not a crash or missing data
+  - does not conclude the cause is a missing/untrained model -- all six zone models are present and active; the defect is in feature encoding, not model coverage

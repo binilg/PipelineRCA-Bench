@@ -1,0 +1,11 @@
+# Managed by the platform/storage team, applies to all objects in the
+# shared reference-data bucket unless explicitly excluded.
+bucket: reference-data
+policy_name: generic-cold-archive-90d
+rule:
+  condition: object_unmodified_for_days >= 90
+  action: move_to_cold_storage
+  applies_to: all objects (no exclusion tags configured)
+owner_team: platform-storage
+last_reviewed: 2025-11-02
+notification_list: platform-storage-alerts@retailco.example.com  # forecasting team not subscribed

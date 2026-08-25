@@ -1,0 +1,12 @@
+# Model promotion record
+
+2026-08-06 09:00 -- demand_forecast_v5 promoted to production, replacing v4.
+
+Offline evaluation (holdout set, 2026-06-15 to 2026-07-31):
+  v4 MAPE (all SKUs):    11.2%
+  v5 MAPE (all SKUs):     9.4%
+  v5 MAPE (promo SKUs):   8.9%  (v4: 15.1%)
+
+Promotion approved based on the above. training_feature_manifest.yaml
+updated to reflect v5's feature set (adds promo_flag). Deployment steps
+completed: model artifact swapped, active_model pointer updated.

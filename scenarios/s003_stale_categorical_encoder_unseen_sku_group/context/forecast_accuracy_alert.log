@@ -1,0 +1,4 @@
+2026-07-23 09:15:02 WARN  [accuracy_monitor] MAPE for sku_group=SEASONAL_PROMO, run_date=2026-07-20: 187.4% (threshold 35%)
+2026-07-23 09:15:02 INFO  [accuracy_monitor] MAPE for all other sku_groups, run_date=2026-07-20: 8.4% (nominal)
+2026-07-23 09:15:03 INFO  [accuracy_monitor] 40 SKUs affected, spanning zones Z_N, Z_NE, Z_S, Z_SE, Z_SW, Z_NW. All belong to sku_group=SEASONAL_PROMO.
+2026-07-23 09:15:03 INFO  [accuracy_monitor] No accuracy degradation observed for GROCERY, CHILLED, FROZEN, BAKERY, PRODUCE, HOUSEHOLD.

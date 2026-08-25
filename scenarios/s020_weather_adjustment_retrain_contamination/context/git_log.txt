@@ -1,0 +1,3 @@
+commit 7d3e0a1  2026-05-02  Add weekly retrain schedule for adjustment_model.py (trailing 6-week window)
+commit b9f4c22  2026-08-01  Retune zone Z_NW core model on latest data (unrelated)
+commit 1a6e9f0  2026-02-14  Initial adjustment_model.py implementation

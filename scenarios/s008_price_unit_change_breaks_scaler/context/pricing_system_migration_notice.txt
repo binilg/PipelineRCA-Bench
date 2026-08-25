@@ -1,0 +1,18 @@
+From: finance-systems@retailco.example.com
+To: finance-reporting-all@retailco.example.com
+Date: 2026-08-01
+Subject: Z_SE pricing system consolidation -- reporting units change
+
+Team,
+
+As part of consolidating Z_SE's legacy point-of-sale system onto the
+group-standard billing platform, avg_unit_price in the daily pricing
+export will report in dollars instead of cents starting 2026-08-04.
+This aligns Z_SE with how every other zone already reports price.
+
+This only affects finance/billing reporting fields -- no action needed
+from downstream reporting consumers, the column name and format (float)
+are unchanged.
+
+Thanks,
+Finance Systems

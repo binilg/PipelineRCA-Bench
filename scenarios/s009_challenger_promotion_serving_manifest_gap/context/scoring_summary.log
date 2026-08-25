@@ -1,0 +1,6 @@
+2026-08-06 02:41:05 INFO  [score_all_models] Run started. run_date=2026-08-06. Serving features: ['sku_group_idx', 'zone_idx', 'avg_unit_price_z', 'trailing_3d_avg']
+2026-08-06 03:04:18 INFO  [score_all_models] Scoring complete. status=SUCCESS
+2026-08-06 03:04:40 INFO  [scoring_orchestrator] Run completed successfully. status=SUCCESS
+2026-08-07 02:40:52 INFO  [score_all_models] Run started. run_date=2026-08-07. Serving features: ['sku_group_idx', 'zone_idx', 'avg_unit_price_z', 'trailing_3d_avg']
+2026-08-07 03:03:59 INFO  [score_all_models] Scoring complete. status=SUCCESS
+2026-08-07 03:04:21 INFO  [scoring_orchestrator] Run completed successfully. status=SUCCESS

@@ -1,0 +1,5 @@
+2026-08-16 02:41:00 INFO  [score_all_models] Run started. run_date=2026-08-16
+2026-08-16 02:41:00 INFO  [score_all_models] Active zones: 260
+2026-08-16 02:47:46 WARN  [score_all_models] zone=Z_S skipped due to task failure: pod terminated (exit 137)
+2026-08-16 03:02:18 INFO  [score_all_models] Scoring complete. 259/260 zones OK. status=SUCCESS
+2026-08-16 03:02:19 INFO  [scoring_orchestrator] Run completed successfully. status=SUCCESS

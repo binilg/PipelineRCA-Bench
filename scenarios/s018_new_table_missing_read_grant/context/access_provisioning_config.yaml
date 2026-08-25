@@ -1,0 +1,14 @@
+# Static allowlist of pipeline output tables and who gets read access.
+# Last updated 2026-05-02 -- predates the 2026-08-12 forecast_output ->
+# forecast_output_v2 migration.
+managed_tables:
+  forecast_output:
+    read_grants:
+      - inventory_planning_svc
+      - replenishment_svc
+      - bi_reporting_svc
+  model_registry:
+    read_grants:
+      - ml_platform_svc
+  # forecast_output_v2 intentionally absent -- this file was not updated
+  # when the table was renamed as part of the schema migration.

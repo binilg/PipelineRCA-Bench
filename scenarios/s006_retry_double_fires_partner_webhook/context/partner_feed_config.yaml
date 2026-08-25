@@ -1,0 +1,9 @@
+partner: acme_retail_partner
+feed: daily_forecast
+transfer_protocol: sftp
+retry_policy:
+  max_attempts: 3
+  backoff_seconds: 300
+webhook:
+  url: https://partner.example.com/hooks/forecast-ready
+  idempotency_key: null   # not implemented for this integration

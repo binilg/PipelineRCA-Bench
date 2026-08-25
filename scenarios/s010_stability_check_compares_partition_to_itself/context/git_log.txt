@@ -1,0 +1,3 @@
+commit d82f4a1  2026-07-20  Clean up stability_check date handling
+commit 6c19e73  2026-05-11  Add PSI-based data stability gate to daily_forecast_scoring
+commit 0a7e2f9  2026-08-09  Fix unrelated flaky test in test_scoring_summary.py

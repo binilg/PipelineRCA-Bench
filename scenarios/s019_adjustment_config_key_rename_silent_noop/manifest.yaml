@@ -1,0 +1,82 @@
+id: s019
+title: A config key rename silently disabled the weather-adjustment layer for three weeks
+category: secondary_model_layer_failure
+difficulty: medium
+stack: [python, pandas]
+
+symptom: |
+  Someone reviewing the forecast output notices that the
+  adjustment_applied column -- the delta the weather-adjustment model
+  adds on top of the core forecast -- has been exactly 0.0 for every
+  single row, every day, for the last three weeks. The adjustment step
+  itself has never failed or raised an alert; it appears in
+  scoring_summary.log as completing successfully every day.
+
+  Investigate why the adjustment model has produced zero adjustment for
+  three weeks straight.
+
+context_files:
+  - context/adjustment_pipeline.py
+  - context/weather_adjustment_config.yaml
+  - context/scoring_summary.log
+  - context/git_log.txt
+
+ground_truth:
+  root_cause: |
+    A config schema cleanup renamed the key
+    weather_adjustment.enabled_zones to
+    weather_adjustment.zones_enabled for naming consistency with other
+    config sections. adjustment_pipeline.py's config loader was not
+    updated in the same change and still reads the old key path. The
+    loader wraps config access in a broad try/except KeyError that
+    falls back to a "disabled" default (empty enabled-zones list) and
+    logs the fallback only at DEBUG level -- well below the pipeline's
+    configured INFO log threshold, so nothing about the fallback is
+    ever visible in the standard logs.
+
+    As a result, every zone has been treated as "adjustment disabled"
+    since the config rename shipped, and the adjustment step has
+    produced a uniform 0.0 delta for every SKU on every run since --
+    while still reporting SUCCESS, because falling back to "no
+    adjustment" is not an error condition from the adjustment step's own
+    point of view.
+
+  causal_chain:
+    - a config schema cleanup renames weather_adjustment.enabled_zones to weather_adjustment.zones_enabled across the config files
+    - adjustment_pipeline.py's config loader is not updated in the same change and still looks up the old key, weather_adjustment.enabled_zones
+    - the loader wraps config access in a broad try/except KeyError that falls back to an empty enabled-zones list (adjustment disabled for all zones) rather than raising
+    - the fallback is logged only at DEBUG level, below the pipeline's configured INFO threshold, so it never appears in scoring_summary.log or triggers any alert
+    - every day since the rename, the adjustment step runs, finds no zones enabled under the fallback config, and applies a 0.0 delta to every SKU -- and reports SUCCESS, since "no adjustment" is a valid, non-error outcome
+    - nobody notices for three weeks because the adjustment step never fails or looks anomalous in the logs -- only a direct look at the adjustment_applied column reveals the flatline
+
+  # Plausible-but-wrong causes present in the context.
+  distractors:
+    - git_log.txt shows an unrelated commit the same week updating the core model's retrain schedule
+    - scoring_summary.log shows the adjustment step completing in normal runtime every day -- nothing about timing looks off
+    - weather_adjustment_config.yaml itself is valid YAML and passes schema validation -- the new key name is well-formed, just not the one the loader reads
+    - the try/except around config loading was originally added to make the adjustment step non-blocking for the core forecast (a reasonable design goal), which makes it look like intentional, correct behavior rather than a bug
+
+  acceptable_fixes:
+    - description: |
+        Update adjustment_pipeline.py's config loader to read the
+        current key name (weather_adjustment.zones_enabled), and
+        replace the broad try/except KeyError with an explicit check
+        that raises or alerts at a visible log level if an expected
+        config key is missing, instead of silently falling back to
+        "disabled."
+    - description: |
+        Add a same-PR requirement (or an automated check) that any
+        config schema rename must update every reader of that key in
+        the same change, and add a monitor on adjustment_applied that
+        alerts if it's uniformly zero for an unexpected number of
+        consecutive days.
+  partial_credit_fixes:
+    - description: Manually patch the config loader to accept both the old and new key names (unblocks it, doesn't prevent the next rename from causing the same silent failure)
+    - description: Add alerting on adjustment_applied == 0.0 for all rows without fixing the underlying key mismatch
+  verification: verify/test_fix.py
+
+# Anti-gaming: agent must name the mechanism, not just "adjustment is zero."
+required_answer_elements:
+  - identifies the config key rename (enabled_zones -> zones_enabled) as the trigger
+  - identifies the loader's try/except KeyError silently falling back to a disabled config, logged only at DEBUG, as the mechanism
+  - identifies that this has been true for every run since the rename, not an isolated incident

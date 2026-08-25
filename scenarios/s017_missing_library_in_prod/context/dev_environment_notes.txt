@@ -1,0 +1,12 @@
+# Local dev environment notes (engineer's workstation, not prod)
+
+$ pip freeze | grep fastparquet
+fastparquet_writer==0.3.1
+
+# Installed 2026-04-02 for a one-off prototype comparing parquet write
+# libraries. Never removed. Never added to requirements_prod.txt because
+# the prototype work didn't ship at the time.
+
+# This local environment's pip freeze was last diffed against
+# requirements_prod.txt on 2026-04-02, at project setup. No process
+# re-checks this diff when new imports are added to the codebase.

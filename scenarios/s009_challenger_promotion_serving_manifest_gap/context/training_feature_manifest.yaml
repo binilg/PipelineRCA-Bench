@@ -1,0 +1,10 @@
+# Used to build the training dataset for each model version.
+demand_forecast_v4:
+  features: [sku_group_idx, zone_idx, avg_unit_price_z, trailing_3d_avg]
+
+demand_forecast_v5:
+  features: [sku_group_idx, zone_idx, avg_unit_price_z, trailing_3d_avg, promo_flag]
+  notes: >
+    v5 adds promo_flag (binary: is this SKU on an active promotion today)
+    to better capture promo-driven demand spikes. Offline evaluation
+    showed a meaningful MAPE improvement on promo SKUs.

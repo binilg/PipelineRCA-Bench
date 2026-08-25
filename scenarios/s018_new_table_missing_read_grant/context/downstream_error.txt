@@ -1,0 +1,13 @@
+Subject: inventory-planning nightly job failed -- forecast read error
+From: inventory-planning-oncall@retailco.example.com
+Date: 2026-08-13
+
+Our nightly replenishment job failed reading forecast_output_v2 for
+run_date 2026-08-13:
+
+  PermissionDeniedError: service account inventory_planning_svc does
+  not have SELECT privilege on table forecast_output_v2
+
+Is the 2026-08-13 forecast missing, or is this something on our side?
+We haven't touched our read query recently -- last change was three
+weeks ago.

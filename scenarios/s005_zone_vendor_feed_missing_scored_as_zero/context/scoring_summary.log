@@ -1,0 +1,6 @@
+2026-08-05 02:40:10 INFO  [score_all_models] Run started. run_date=2026-08-05
+2026-08-05 02:40:11 INFO  [score_all_models] SKU catalog loaded: 1,861 active SKUs
+2026-08-05 02:52:47 WARN  [scoring_worker_02] M_0031 (Z_NE) duration 104s (soft limit 90s) - completed
+2026-08-05 03:01:18 INFO  [score_all_models] Feature build complete: 1,861 SKU-rows
+2026-08-05 03:06:52 INFO  [score_all_models] Scoring complete. status=SUCCESS
+2026-08-05 03:07:30 INFO  [scoring_orchestrator] Run completed successfully. status=SUCCESS

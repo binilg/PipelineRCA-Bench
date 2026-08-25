@@ -1,0 +1,9 @@
+2026-07-13 04:00:02 INFO  [adjustment_model] zone=Z_SE as_of=2026-07-13 retrained correction=-0.021 (over 6 weeks, no anomaly exclusion, no magnitude cap)
+2026-07-20 04:00:03 INFO  [adjustment_model] zone=Z_SE as_of=2026-07-20 retrained correction=-0.140 (over 6 weeks, no anomaly exclusion, no magnitude cap)
+2026-07-27 04:00:02 INFO  [adjustment_model] zone=Z_SE as_of=2026-07-27 retrained correction=-0.131 (over 6 weeks, no anomaly exclusion, no magnitude cap)
+2026-08-03 04:00:04 INFO  [adjustment_model] zone=Z_SE as_of=2026-08-03 retrained correction=-0.124 (over 6 weeks, no anomaly exclusion, no magnitude cap)
+2026-08-10 04:00:03 INFO  [adjustment_model] zone=Z_SE as_of=2026-08-10 retrained correction=-0.118 (over 6 weeks, no anomaly exclusion, no magnitude cap)
+
+# All five retrains completed successfully with no errors. The trailing
+# 6-week window as of 2026-08-10 still spans back to 2026-06-29, which
+# includes the 2026-07-06 storm week.

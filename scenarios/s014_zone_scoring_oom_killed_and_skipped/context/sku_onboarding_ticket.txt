@@ -1,0 +1,8 @@
+Ticket: MERCH-4471 -- Onboard 340 new pantry SKUs to Z_S catalog
+Status: Completed 2026-08-15
+Summary: Merchandising is expanding Z_S's pantry category ahead of the
+Q3 promo calendar. 340 new SKUs added to the catalog, effective
+2026-08-16. This roughly doubles the SKU count scored per model for
+Z_S's pantry-category models on the first run after onboarding, since
+the feature matrix includes full price/promo history for each new SKU.
+No infrastructure sizing review was requested for this change.

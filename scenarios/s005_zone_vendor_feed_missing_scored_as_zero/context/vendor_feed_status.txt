@@ -1,0 +1,12 @@
+# Vendor POS feed landing status (#data-ingestion channel, excerpted)
+
+[2026-08-05 01:15] ingestion-bot: Feed landing check for run_date=2026-08-05:
+  Z_N: OK (114,220 rows)
+  Z_NE: OK (98,410 rows)
+  Z_S: OK (121,880 rows)
+  Z_SE: OK (105,332 rows)
+  Z_SW: NO FILE RECEIVED -- vendor site closed (public holiday), no upload window today
+  Z_NW: OK (61,004 rows)
+
+[2026-08-05 01:16] ingestion-bot: 5/6 zone feeds landed. Proceeding with available data
+(no hard block configured for partial vendor landing).

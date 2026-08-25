@@ -1,0 +1,81 @@
+id: s009
+title: A promoted challenger model silently null-filled a feature the champion never used
+category: train_serving_skew
+difficulty: medium
+stack: [python, pandas]
+
+symptom: |
+  The daily_forecast_scoring DAG has run green every day since the
+  demand_forecast_v5 challenger model was promoted to production on
+  2026-08-06, replacing the v4 champion. No exceptions, no missing
+  features reported anywhere in the logs.
+
+  A promo-accuracy monitor flags that SKUs on active promotions have
+  been systematically underforecast every day since 2026-08-06, while
+  non-promo SKUs are within normal accuracy range.
+
+  Identify why promoted SKUs are being underforecast and what should be
+  fixed.
+
+context_files:
+  - context/dag.py
+  - context/serving_feature_manifest.yaml
+  - context/training_feature_manifest.yaml
+  - context/model_promotion_log.txt
+  - context/promo_calendar.csv
+  - context/scoring_summary.log
+
+ground_truth:
+  root_cause: |
+    demand_forecast_v5 (the challenger) was trained with an additional
+    feature, promo_flag, that v4 (the champion) never used. Promoting
+    v5 to production updated the training-side feature manifest (used
+    to build the training dataset) but not the separate serving-side
+    feature manifest, which the online feature pipeline reads to decide
+    which features to compute for the currently active model.
+
+    As a result, promo_flag is never computed at serving time -- it's
+    simply absent from the feature vector passed to v5. The model's
+    inference wrapper fills any feature missing from the input vector
+    with 0 before scoring, rather than raising. Since 0 means "not on
+    promo," every SKU -- including ones genuinely on an active
+    promotion -- gets scored as if it weren't, systematically
+    underforecasting demand for promoted SKUs from the promotion date
+    forward.
+
+  causal_chain:
+    - demand_forecast_v5 is trained with an extra feature, promo_flag, not used by v4
+    - promoting v5 to production updates the training feature manifest but not the separate serving feature manifest
+    - the online feature pipeline reads the (stale) serving manifest and never computes promo_flag for any SKU
+    - v5's inference wrapper fills any feature missing from the input vector with 0 rather than raising
+    - promo_flag=0 is scored for every SKU, including ones genuinely on promotion, since the wrapper can't distinguish "not on promo" from "value never computed"
+    - promoted SKUs are systematically underforecast from 2026-08-06 forward; no exception is raised anywhere since scoring completes normally
+
+  # Plausible-but-wrong causes present in the context.
+  distractors:
+    - model_promotion_log.txt shows v5's offline evaluation results (a real, better accuracy score) that justified the promotion -- correct and not the bug, but easy to assume the model is "just worse in production for some reason" without checking the feature manifest gap
+    - serving_feature_manifest.yaml is dated a week before the promotion and is valid YAML with no error -- looks fine unless compared against the training manifest
+    - scoring_summary.log shows nothing unusual -- all features "resolved," no missing-feature exception, because the inference wrapper's 0-fill suppresses any error
+    - promo_calendar.csv shows promos overlapping normal seasonal demand upticks for some SKUs -- real, but doesn't explain the systematic pattern isolated to promo SKUs starting exactly on the promotion date
+
+  acceptable_fixes:
+    - description: |
+        Make promotion a single atomic step that updates both the
+        training and serving feature manifests together (or derives
+        the serving manifest directly from the model's declared
+        feature schema), so a model can never be promoted with
+        features the serving pipeline doesn't know to compute.
+    - description: |
+        Change the inference wrapper to raise/reject when a feature
+        the model expects is missing from the input vector, instead of
+        silently filling it with 0.
+  partial_credit_fixes:
+    - description: Add a promo-specific accuracy monitor that alerts sooner (catches it faster, doesn't prevent it)
+    - description: Manually backfill promo_flag and rescore affected SKUs after the fact
+  verification: verify/test_fix.py
+
+# Anti-gaming: agent must name the mechanism, not just blame the new model.
+required_answer_elements:
+  - identifies promo_flag missing from the serving feature manifest (not computed at inference time) as the trigger
+  - identifies the inference wrapper's 0-fill-on-missing-feature behavior as the mechanism causing every SKU to be scored as "not on promo"
+  - does not attribute the underforecasting to the challenger model itself being worse -- v5's training and offline evaluation were correct; the defect is in the serving-side feature manifest sync

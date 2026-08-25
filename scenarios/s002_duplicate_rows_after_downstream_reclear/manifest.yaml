@@ -1,0 +1,88 @@
+id: s002
+title: Forecast partition duplicated after clearing a downstream task for rerun
+category: rerun_idempotency_failure
+difficulty: medium
+stack: [airflow, python, pandas]
+
+# What the agent is told. Note: no exception, no failed task in final state.
+symptom: |
+  The daily_forecast_scoring DAG for run_date 2026-07-16 shows all tasks
+  green in the final run history. No exceptions recorded.
+
+  The nightly forecast uplift health check flagged an anomaly: it sums
+  total forecast_qty for the day and compares it to the prior day's
+  sum, alerting if the change exceeds 10%. For run_date 2026-07-16, the
+  check measured +97.8% uplift against a baseline that normally moves
+  1-2% day to day.
+
+  Identify why the day's total forecast volume nearly doubled and what
+  should be fixed.
+
+context_files:
+  - context/dag.py
+  - context/scoring_summary.log
+  - context/ops_action_log.txt
+  - context/forecast_uplift_check.log
+  - context/row_counts.csv
+  - context/model_registry.csv
+  - context/git_log.txt
+
+ground_truth:
+  root_cause: |
+    On 2026-07-16, publish_to_warehouse failed on its first attempt due
+    to a transient network timeout, after the upstream
+    write_forecast_partition task had already succeeded and written the
+    full 1,294,075-row partition (258 active models). The on-call
+    engineer cleared publish_to_warehouse using `--upstream` (intending
+    to be safe and retry the whole chain "just in case"), which also
+    cleared and re-triggered write_forecast_partition even though it had
+    already succeeded.
+
+    write_forecast_partition writes in APPEND mode with no
+    delete-before-write step and no upsert key, so the second execution
+    appended a full second copy of all 258 models' rows on top of the
+    first, doubling the partition to 2,588,150 rows and roughly doubling
+    total forecast_qty. publish_to_warehouse then succeeded on the
+    retry, so the final DAG run shows all tasks green with no error
+    surfaced anywhere in the run history. The mismatch was only caught
+    the next morning by the uplift health check, which compares total
+    forecast_qty day over day.
+
+  causal_chain:
+    - publish_to_warehouse fails on first attempt (transient network timeout to warehouse-api)
+    - write_forecast_partition had already succeeded and written 1,294,075 rows
+    - on-call clears publish_to_warehouse with --upstream, which also clears write_forecast_partition
+    - write_forecast_partition re-executes and appends (not overwrites) a second full copy
+    - publish_to_warehouse succeeds on the second attempt; final DAG run shows all green
+    - partition ends up with roughly double the rows and total forecast_qty; the uplift health check flags +97.8% day-over-day change against the 10% threshold, since nothing in the run history itself indicates a rerun happened
+
+  # Plausible-but-wrong causes present in the context.
+  distractors:
+    - model_registry.csv shows 3 new models onboarded this week (255 -> 258 active) -- real, but ~1.2% more models cannot explain a ~98% uplift in total forecast volume
+    - row_counts.csv shows daily row counts naturally fluctuate a little day to day (model onboarding, SKU churn) -- easy to mistake 2026-07-16's inflated count for ordinary variance rather than a duplicate write
+    - git_log.txt shows an unrelated commit adjusting forecast_qty rounding precision, merged the same week
+    - git_log.txt shows the HTTP timeout for publish_to_warehouse was increased from 60s to 120s a week earlier -- looks related to the network failure but didn't prevent it and isn't the duplication mechanism
+
+  acceptable_fixes:
+    - description: |
+        Make write_forecast_partition idempotent -- delete the target
+        partition (or upsert keyed on model_id + run_date) before
+        writing, so re-execution for the same run_date is always safe
+        regardless of which tasks get re-triggered.
+    - description: |
+        Change the rerun procedure so clearing a task never
+        re-triggers upstream tasks that already succeeded -- e.g. use a
+        single-task clear/rerun instead of --upstream, or gate
+        write_forecast_partition with a completion marker it checks
+        before writing.
+  partial_credit_fixes:
+    - description: Add a post-write row-count assertion that fails the DAG if partition size exceeds an expected range for the active model count
+    - description: Manually dedupe the 2026-07-16 partition after the fact
+  verification: verify/test_fix.py
+
+# Anti-gaming: agent must name the mechanism, not just the symptom.
+required_answer_elements:
+  - identifies write_forecast_partition running twice for run_date 2026-07-16 as the mechanism
+  - identifies the --upstream clear of publish_to_warehouse as what re-triggered the already-succeeded write task
+  - identifies the append-only (non-idempotent) write as the reason the rerun caused duplication rather than a harmless no-op
+  - does not attribute the forecast volume uplift primarily to the 3 new models

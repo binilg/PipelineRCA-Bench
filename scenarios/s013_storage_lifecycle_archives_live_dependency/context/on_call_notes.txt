@@ -1,0 +1,10 @@
+[2026-08-14 03:05] @m.oconnor: daily_forecast_scoring failed, FileNotFoundError on
+holiday_calendar_reference.csv. Weird, this file hasn't changed in ages.
+
+[2026-08-14 03:07] @m.oconnor: first guess -- someone must have deleted it by
+accident during a bucket cleanup? Checking with platform team.
+
+[2026-08-14 03:40] @m.oconnor: platform team says it wasn't deleted -- got
+moved to cold storage by their standard 90-day unmodified-object policy.
+File was created 2026-04-20, never modified since, last read access doesn't
+count toward the policy's clock. Makes sense now.

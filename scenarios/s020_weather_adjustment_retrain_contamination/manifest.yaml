@@ -1,0 +1,87 @@
+id: s020
+title: A one-off severe-weather week got baked into the adjustment model's retrain and kept suppressing forecasts long after the event passed
+category: secondary_model_layer_failure
+difficulty: hard
+stack: [python, pandas]
+
+symptom: |
+  Zone Z_SE had a severe storm the week of 2026-07-06 that genuinely
+  suppressed footfall and sales; the weather-adjustment layer correctly
+  applied a -14% correction that week, which was appropriate at the
+  time.
+
+  It is now 2026-08-13, five weeks later. Z_SE has had ordinary weather
+  and normal sales for a month, but the adjustment layer is still
+  applying a steady -11% to -13% correction to Z_SE every day, and
+  replenishment is reporting recurring stockouts in the zone.
+
+  Investigate why the adjustment has persisted well after the weather
+  event ended, and what should be fixed.
+
+context_files:
+  - context/adjustment_model.py
+  - context/retrain_config.yaml
+  - context/retrain_log.txt
+  - context/adjustment_history.csv
+  - context/weather_event_log.txt
+  - context/git_log.txt
+
+ground_truth:
+  root_cause: |
+    The adjustment model is retrained weekly on a trailing 6-week window
+    of (core forecast vs. actuals) residuals per zone, with no mechanism
+    to exclude anomalous weeks from that training window. The 2026-07-06
+    storm week -- a genuine, one-off, non-recurring event -- fell inside
+    the trailing window for every weekly retrain from 2026-07-13 through
+    2026-08-10. Each of those retrains partially re-fit Z_SE's baseline
+    correction toward the storm week's residual pattern, since the
+    training data has no way to distinguish "a real anomaly that already
+    ended" from "a persistent structural change in this zone's demand."
+
+    There is also no cap on how large or how long a negative adjustment
+    can persist, so once the model concluded Z_SE's demand was
+    structurally ~12% below the core forecast, it kept applying a
+    correction of similar magnitude on every subsequent run, with no
+    decay and no automatic expiration tied to the original event window.
+    The adjustment will keep re-anchoring itself near this level on each
+    weekly retrain until enough normal weeks eventually dilute the
+    storm week out of the trailing 6-week window on their own -- which
+    hasn't happened yet.
+
+  causal_chain:
+    - a genuine, severe, one-off storm suppresses Z_SE sales for the week of 2026-07-06; the adjustment model correctly applies a -14% correction that week
+    - the adjustment model retrains weekly on a trailing 6-week window of forecast-vs-actuals residuals per zone, with no logic to detect or exclude anomalous weeks from that window
+    - the 2026-07-06 storm week remains inside the trailing 6-week retrain window for every weekly retrain through 2026-08-10 (six consecutive retrains)
+    - each of those retrains partially re-fits Z_SE's baseline correction toward the storm week's residual, since the training process treats the storm week's data the same as any other week's
+    - there is no cap on adjustment magnitude and no decay/expiration tied to the original event window, so the model's learned correction persists at a similar magnitude run after run once established
+    - normal weather and normal sales return to Z_SE by early August, but the adjustment doesn't unwind on its own -- it only fades once the anomalous week eventually rolls out of the trailing window, which hasn't happened yet as of 2026-08-13
+
+  # Plausible-but-wrong causes present in the context.
+  distractors:
+    - weather_event_log.txt correctly shows the storm ended 2026-07-09 -- true, but the adjustment model has no mechanism that reads or reacts to this event-end date at all
+    - retrain_log.txt shows every weekly retrain completing successfully with no errors -- the retrains are working exactly as designed, which is itself the problem
+    - git_log.txt shows an unrelated commit tuning a different zone's core model the same week
+    - adjustment_history.csv shows the correction magnitude gradually declining week over week (-14%, -13.1%, -12.4%...) -- looks like it's "resolving itself," but at the current rate it will take many more weeks to fully clear the training window
+
+  acceptable_fixes:
+    - description: |
+        Detect and exclude anomalous weeks (e.g. via an outlier/event
+        flag informed by weather_event_log.txt) from the adjustment
+        model's retrain window, so a one-off event doesn't get
+        re-learned as a persistent structural pattern.
+    - description: |
+        Cap the magnitude of any negative adjustment (e.g. to 2%) and
+        tie adjustments explicitly to an active event window with an
+        automatic decay/expiration once the triggering event ends,
+        rather than letting the retrain process implicitly relearn and
+        indefinitely sustain a correction.
+  partial_credit_fixes:
+    - description: Manually zero out or override Z_SE's adjustment until it naturally decays out of the training window (unblocks replenishment now, doesn't fix the retrain process)
+    - description: Shorten the trailing retrain window so anomalous weeks roll off faster (reduces the duration of future incidents, doesn't address the lack of anomaly detection or magnitude cap)
+  verification: verify/test_fix.py
+
+# Anti-gaming: agent must explain the persistence mechanism, not just restate the symptom.
+required_answer_elements:
+  - identifies the storm week remaining inside the trailing 6-week retrain window across multiple retrains as the mechanism keeping the adjustment alive
+  - identifies the absence of anomaly exclusion and of a magnitude cap / event-tied decay as why the correction persists well past the event's end
+  - does not conclude the adjustment model is simply "wrong" or malfunctioning -- it is retraining and computing correctly on the data it's given; the defect is in what data feeds the retrain and the lack of any decay mechanism

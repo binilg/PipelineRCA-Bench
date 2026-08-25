@@ -1,0 +1,9 @@
+2026-07-14 02:41:07 INFO  [scoring_orchestrator] Run started. run_date=2026-07-14
+2026-07-14 02:41:07 INFO  [scoring_orchestrator] Model registry loaded: 255 active models
+2026-07-14 02:41:09 INFO  [scoring_orchestrator] Dispatching scoring workers (parallelism=16)
+2026-07-14 02:58:33 WARN  [scoring_worker_04] M_0088 peak memory 6.2GB (soft limit 6.0GB) - completed
+2026-07-14 03:07:52 INFO  [scoring_orchestrator] Model scoring complete: 255/255 accounted
+2026-07-14 03:07:52 INFO  [scoring_orchestrator] Fallback substitutions applied: 3 (tolerance=5) - within threshold
+2026-07-14 03:09:15 INFO  [output_writer] Assembling forecast partition run_date=2026-07-14
+2026-07-14 03:13:48 INFO  [output_writer] Wrote 1,284,730 rows
+2026-07-14 03:14:02 INFO  [scoring_orchestrator] Run completed successfully. status=SUCCESS

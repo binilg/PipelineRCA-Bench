@@ -1,0 +1,81 @@
+id: s018
+title: A new output table shipped with the release but the access-provisioning automation only refreshes grants on known table names
+category: change_management_failure
+difficulty: easy
+stack: [python, sql, cloud-iam]
+
+symptom: |
+  The daily_forecast_scoring DAG for run_date 2026-08-13 shows all
+  tasks green, including the final write step. No exceptions recorded.
+
+  The downstream inventory-planning team reports their nightly job
+  failed to read forecast_output_v2 with a permission-denied error.
+  They ask whether the forecast is missing for 2026-08-13.
+
+  Identify why the forecast is unreadable downstream despite the DAG
+  reporting success, and what should be fixed.
+
+context_files:
+  - context/write_task.py
+  - context/access_provisioning.py
+  - context/access_provisioning_config.yaml
+  - context/downstream_error.txt
+  - context/scoring_summary.log
+  - context/git_log.txt
+
+ground_truth:
+  root_cause: |
+    A release migrated the forecast output table from forecast_output to
+    forecast_output_v2 as part of a schema change. The write path itself
+    works fine -- the DAG correctly writes to the new table and reports
+    SUCCESS, because the pipeline's own service account already has
+    write access to any table it creates.
+
+    Read access for downstream consumers, however, is granted by a
+    separate access-provisioning script that runs nightly and applies
+    grants based on a static allowlist of table names in
+    access_provisioning_config.yaml. That allowlist still lists the old
+    forecast_output table and was never updated to include
+    forecast_output_v2, so the automation has nothing to grant against
+    the new table. The inventory-planning service account has never had
+    read access to forecast_output_v2 at any point since the migration,
+    and their query fails with a permission error that looks like the
+    data itself might be missing.
+
+  causal_chain:
+    - a release migrates the forecast output table from forecast_output to forecast_output_v2 as part of a schema change
+    - the pipeline's own write path succeeds against the new table name, since the writing service account has implicit access to tables it creates -- the DAG correctly reports SUCCESS
+    - a separate, nightly access-provisioning script grants downstream read access based on a static allowlist of table names in access_provisioning_config.yaml
+    - that allowlist was never updated to include forecast_output_v2 -- it still only lists forecast_output
+    - the access-provisioning script has nothing to grant for the new table name, so no downstream service account, including inventory-planning's, is ever granted read access to forecast_output_v2
+    - inventory-planning's nightly read fails with a permission-denied error, which surfaces to them as "forecast missing" even though the data was written correctly and completely
+
+  # Plausible-but-wrong causes present in the context.
+  distractors:
+    - scoring_summary.log shows the write step completing successfully with a nominal row count -- correctly rules out a data-loss explanation, but doesn't by itself explain the read failure
+    - git_log.txt shows an unrelated commit tuning a retry timeout the same week
+    - downstream_error.txt's error message is a generic "permission denied," which reads the same whether the table doesn't exist, has no data, or exists with data but no grant
+    - access_provisioning_config.yaml is well-formatted and passes its own schema validation -- looks correct at a glance without cross-checking it against the actual current table name
+
+  acceptable_fixes:
+    - description: |
+        Update access_provisioning_config.yaml to include
+        forecast_output_v2 (and grant the pending downstream service
+        accounts, including inventory-planning's) to unblock reads
+        immediately.
+    - description: |
+        Change the access-provisioning automation to derive its target
+        table list from the pipeline's actual output-table registry (or
+        run automatically as part of any schema-migrating release)
+        instead of a manually maintained static allowlist, so a new
+        table can never ship without its read grants being provisioned.
+  partial_credit_fixes:
+    - description: Manually grant inventory-planning's service account read access to forecast_output_v2 as a one-off (unblocks this consumer, leaves the allowlist stale for the next consumer or the next migration)
+    - description: Advise inventory-planning to read from the old forecast_output table (works only until it's decommissioned, doesn't fix the provisioning gap)
+  verification: verify/test_fix.py
+
+# Anti-gaming: agent must correctly rule out a data problem.
+required_answer_elements:
+  - identifies the access-provisioning allowlist not including forecast_output_v2 as the mechanism
+  - identifies that the write itself succeeded and the forecast data is present and complete -- this is a read-permission gap, not missing or corrupted data
+  - proposes deriving grants from the actual table registry (or automating provisioning on release) rather than only a one-off manual grant

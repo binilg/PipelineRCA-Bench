@@ -1,0 +1,3 @@
+commit 2f61a8d  2026-08-05  Retrain Z_NW demand model on latest data (unrelated zone)
+commit 9d40c17  2026-07-28  Bump scikit-learn 1.4.2 -> 1.5.0
+commit 7a2e9b0  2026-06-01  Fit avg_unit_price StandardScaler on cents-scale training data (mean=1500, std=150)

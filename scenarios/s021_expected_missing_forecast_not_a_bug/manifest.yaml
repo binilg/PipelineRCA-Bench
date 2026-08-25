@@ -1,0 +1,80 @@
+id: s021
+title: Downstream reports forecast missing for a batch of sku-store combinations, but every one is legitimately excluded by design
+category: false_positive_correct_behavior
+difficulty: hard
+stack: [python, pandas]
+
+symptom: |
+  The downstream inventory-planning team files a ticket: "The forecast
+  is missing for 47 sku-store combinations as of 2026-08-13 -- see
+  attached list. Is scoring broken for these?"
+
+  The daily_forecast_scoring DAG ran green for 2026-08-13, no
+  exceptions, nominal row counts.
+
+  Investigate whether there is a real bug causing these 47 combinations
+  to be missing from the forecast, or whether their absence is
+  expected -- and if it's expected, explain why for each group so
+  downstream can self-diagnose next time.
+
+context_files:
+  - context/missing_combinations_report.csv
+  - context/sku_catalog.csv
+  - context/store_assortment.csv
+  - context/scoring_eligibility_rules.py
+  - context/scoring_summary.log
+  - context/git_log.txt
+
+ground_truth:
+  is_false_positive: true
+  root_cause: |
+    None of the 47 sku-store combinations in the downstream report are
+    the result of a pipeline bug. Cross-referencing each against the
+    catalog and the scoring eligibility rules shows they fall into four
+    known, intentional exclusion categories that scoring_eligibility_rules.py
+    applies by design: 18 are SKUs below the minimum sales-history
+    threshold for a statistical forecast to be meaningful
+    (non-forecastable), 14 are SKUs whose catalog effective_date is in
+    the future (not yet active as of 2026-08-13), 11 are sku-store pairs
+    where the store's assortment doesn't include that SKU at all (not
+    ranged at that store), and 4 are SKUs explicitly marked discontinued
+    in the most recent catalog refresh. Each of these is the scoring
+    pipeline correctly declining to forecast something it was never
+    supposed to forecast -- there is no missing data, no failed task,
+    and no gap in the pipeline's logic to fix.
+
+  causal_chain:
+    - downstream's report lists 47 sku-store combinations with no forecast row for 2026-08-13
+    - scoring_eligibility_rules.py applies four intentional exclusion filters before scoring -- minimum sales history, active effective_date, store assortment membership, and discontinued status
+    - cross-referencing each of the 47 combinations against sku_catalog.csv and store_assortment.csv shows every one matches at least one of these four filters
+    - 18 combinations fail the minimum sales-history filter, 14 have a future effective_date, 11 are sku-store pairs absent from that store's assortment, and 4 are marked discontinued
+    - the DAG's own row count and task status are both nominal because no failure occurred anywhere -- the eligibility filters ran exactly as designed
+    - the downstream team's confusion comes from having no visibility into why a given sku-store combination was excluded, not from any actual gap in the forecast
+
+  # Plausible-but-wrong causes present in the context. For a false-positive
+  # scenario, these represent real-looking signals that might tempt an
+  # agent to fabricate a bug rather than correctly conclude none exists.
+  distractors:
+    - scoring_eligibility_rules.py's exclusion logic is scattered across four separate filter functions rather than one place, which can look like disorganized or accidental filtering rather than deliberate design
+    - missing_combinations_report.csv is sorted by sku_id with no grouping by exclusion reason, so the four distinct causes aren't visually obvious at a glance and the list can look like one uniform problem
+    - git_log.txt shows a recent commit touching scoring_eligibility_rules.py the same week, which could look like a regression even though the diff only adds a comment
+    - none of the 47 combinations appear anywhere in scoring_summary.log, which could be misread as "the pipeline lost track of them" rather than "the pipeline correctly never attempted to score them"
+
+  acceptable_conclusion: |
+    No pipeline or code fix is needed. All 47 combinations are correctly
+    excluded by existing, intentional eligibility rules. The
+    appropriate action is to communicate the four exclusion reasons back
+    to the downstream team for this specific batch, and -- as a
+    genuinely useful process improvement, not a bug fix -- consider
+    exposing exclusion reasons in a downstream-facing view (e.g. a
+    "forecast_excluded_skus" table or dashboard annotation) so future
+    "is this missing or expected" questions are self-service instead of
+    requiring a manual investigation each time.
+  verification: verify/test_fix.py
+
+# Anti-gaming: an agent that invents a code fix for a non-bug should score
+# WORSE than one that correctly concludes no fix is needed.
+required_answer_elements:
+  - explicitly states that no pipeline bug exists and no code/pipeline fix is needed
+  - correctly attributes the missing combinations to the actual eligibility rules (sales-history threshold, future effective_date, assortment exclusion, discontinued status) rather than a generic or invented cause
+  - does not propose a code change to "fix" the exclusion logic itself, since the exclusion logic is working as intended

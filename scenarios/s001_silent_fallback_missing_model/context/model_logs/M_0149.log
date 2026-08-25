@@ -1,0 +1,8 @@
+2026-07-14 02:44:12 INFO  [M_0149] Scoring start. zone=Z_NW run_date=2026-07-14
+2026-07-14 02:44:12 INFO  [M_0149] Resolving artifact: /models/prod/Z_NW/M_0149/2026-07-14/model.pkl
+2026-07-14 02:44:12 ERROR [M_0149] FileNotFoundError: /models/prod/Z_NW/M_0149/2026-07-14/model.pkl
+2026-07-14 02:44:12 INFO  [M_0149] Retrying with latest available artifact for zone Z_NW
+2026-07-14 02:44:13 ERROR [M_0149] No artifact found for zone Z_NW at any date
+2026-07-14 02:44:13 WARN  [M_0149] Invoking fallback handler
+2026-07-14 02:44:14 INFO  [M_0149] Fallback: sourced forecast from run_date=2026-07-13 partition
+2026-07-14 02:44:14 INFO  [M_0149] Scoring complete (fallback). status=OK_FALLBACK

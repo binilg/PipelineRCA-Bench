@@ -1,0 +1,6 @@
+2026-08-13 03:12:01 INFO  [upload_to_warehouse] Run started. run_date=2026-08-13
+2026-08-13 03:12:01 ERROR [upload_to_warehouse] Traceback (most recent call last):
+  File "upload_task.py", line 3, in <module>
+    import fastparquet_writer
+ModuleNotFoundError: No module named 'fastparquet_writer'
+2026-08-13 03:12:01 ERROR [upload_to_warehouse] Task failed. status=FAILED

@@ -1,0 +1,3 @@
+commit 1e40a7c  2026-07-11  Onboard Z_NW zone and register 5 new models (255 -> 260 active)
+commit 88b2f01  2026-06-20  Onboard 2 additional Z_SE models for new sku_group coverage
+commit 5f0d9c8  2026-02-14  Add coverage_check gate with MIN_EXPECTED_ROWS = 1_000_000

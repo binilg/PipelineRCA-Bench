@@ -1,0 +1,75 @@
+id: s010
+title: The data-stability check has been silently comparing a partition to itself for three weeks
+category: data_quality_gate_failure
+difficulty: easy
+stack: [python, pandas]
+
+symptom: |
+  On 2026-08-10, an upstream ETL bug corrupted a numeric column's
+  values for that day's input partition. The daily_forecast_scoring DAG
+  ran green, including its data-stability gate, which is specifically
+  designed to catch exactly this kind of day-over-day distribution
+  shift and block the run. It reported "Stability check: Green
+  (PSI=0.00)."
+
+  Investigate why the stability check didn't catch a real, sizable data
+  shift on 2026-08-10.
+
+context_files:
+  - context/stability_check.py
+  - context/git_log.txt
+  - context/scoring_summary.log
+  - context/upstream_etl_incident_log.txt
+  - context/stability_check_test_results.txt
+
+ground_truth:
+  root_cause: |
+    A refactor of stability_check.py three weeks before the incident
+    changed how the "yesterday" reference partition is resolved. The
+    intended logic is "compare today's partition to yesterday's," but
+    the refactor introduced a timedelta bug -- an offset of 0 days
+    instead of -1 -- so the check has been loading and comparing
+    today's own partition against itself on every run since the
+    refactor. Comparing a partition to itself always yields PSI=0.0
+    (identical distributions by definition), so the check has silently
+    reported Green on every run regardless of what's actually happening
+    in the data -- including on 2026-08-10, when an unrelated upstream
+    ETL bug genuinely corrupted a numeric column's values, which a
+    correctly-functioning stability check would have flagged.
+
+  causal_chain:
+    - a refactor of stability_check.py three weeks prior changes how the "yesterday" reference date is computed
+    - a timedelta bug (offset of 0 days instead of -1) causes the check to load today's own partition as the "yesterday" comparison baseline
+    - comparing a partition to itself always produces PSI=0.0, so the check has silently reported Green on every run since the refactor, providing zero real signal
+    - on 2026-08-10, an unrelated upstream ETL bug corrupts a numeric column's values for that day's partition
+    - the stability check, still comparing today to itself, reports Green as always, and the corrupted data proceeds through scoring unblocked
+    - forecasts for 2026-08-10 are downstream-affected by the corrupted feature; nothing in the pipeline's own gates caught it because the one gate designed to catch exactly this kind of shift has been broken for three weeks
+
+  # Plausible-but-wrong causes present in the context.
+  distractors:
+    - git_log.txt describes the refactor commit simply as "clean up stability_check date handling" -- innocuous-sounding, easy to skip past
+    - stability_check_test_results.txt shows all unit tests passing -- because they test the PSI computation itself given two DataFrames, not the date-resolution logic that selects which two DataFrames to compare
+    - upstream_etl_incident_log.txt documents the real ETL bug that corrupted the column -- real and relevant, but only half the story; easy to stop at "found the ETL bug" without asking why the stability gate didn't catch it
+    - "scoring_summary.log shows \"Stability check: Green (PSI=0.00)\" for every run over the past three weeks, which reads as reassuring rather than as the anomaly itself -- PSI is essentially never exactly 0.00 for real day-over-day data"
+
+  acceptable_fixes:
+    - description: |
+        Fix the date-offset bug so the stability check compares
+        today's partition against yesterday's, and add a unit test
+        specifically for the date-resolution logic (not just the PSI
+        math) so this class of bug can't regress silently.
+    - description: |
+        Add a sanity check on the stability check itself -- alert if
+        PSI is exactly 0.0 for N consecutive days, since that pattern
+        itself indicates the check isn't performing a meaningful
+        comparison.
+  partial_credit_fixes:
+    - description: Manually re-run the stability check with corrected date logic against historical partitions to retroactively identify what it missed
+    - description: Fix the immediate ETL bug that corrupted the 2026-08-10 column, without fixing the stability check itself
+  verification: verify/test_fix.py
+
+# Anti-gaming: agent must separate the two bugs.
+required_answer_elements:
+  - identifies the stability check comparing today's partition to itself (0-day offset bug) as the reason it never flags anything
+  - identifies that this has been true for every run since the refactor three weeks earlier, not just on the incident date
+  - distinguishes the upstream ETL bug (the actual data corruption) from the stability check bug (why the gate designed to catch it didn't) as two separate issues

@@ -1,0 +1,16 @@
+2026-07-24 02:41:10 INFO  [score_all_models] Run started. run_date=2026-07-24
+2026-07-24 03:02:18 INFO  [adjustment_pipeline] zone=Z_N adjustment_applied=0.0
+2026-07-24 03:02:18 INFO  [adjustment_pipeline] zone=Z_SE adjustment_applied=0.0
+2026-07-24 03:04:55 INFO  [score_all_models] Scoring complete. status=SUCCESS
+2026-07-24 03:04:56 INFO  [scoring_orchestrator] Run completed successfully. status=SUCCESS
+...
+2026-08-13 02:41:05 INFO  [score_all_models] Run started. run_date=2026-08-13
+2026-08-13 03:02:40 INFO  [adjustment_pipeline] zone=Z_N adjustment_applied=0.0
+2026-08-13 03:02:40 INFO  [adjustment_pipeline] zone=Z_SE adjustment_applied=0.0
+2026-08-13 03:05:11 INFO  [score_all_models] Scoring complete. status=SUCCESS
+2026-08-13 03:05:12 INFO  [scoring_orchestrator] Run completed successfully. status=SUCCESS
+
+# adjustment_applied has read 0.0 for every zone, every run, since
+# 2026-07-24 -- the day of the config rename. Log level is INFO;
+# the DEBUG-level fallback message in adjustment_pipeline.py's
+# _load_enabled_zones() is not captured at this log threshold.

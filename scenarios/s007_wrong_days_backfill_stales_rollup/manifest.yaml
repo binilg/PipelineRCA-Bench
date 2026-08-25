@@ -1,0 +1,78 @@
+id: s007
+title: Backfill run with the wrong --days value re-wrote three days that were already finalized
+category: rerun_idempotency_failure
+difficulty: medium
+stack: [airflow, python, pandas]
+
+symptom: |
+  No pipeline task failed and no alert fired. Finance flags that the
+  weekly sales-vs-forecast rollup report for the week of 2026-07-28,
+  computed on 2026-08-01, doesn't match if you recompute it from the
+  current forecast partitions -- the rollup and the current partitions
+  disagree for 3 of the 7 days.
+
+  Identify why the rollup and the underlying partitions no longer agree.
+
+context_files:
+  - context/backfill_cli.py
+  - context/backfill_run_log.txt
+  - context/weekly_rollup_job.py
+  - context/rollup_report_comparison.csv
+  - context/row_counts.csv
+  - context/git_log.txt
+
+ground_truth:
+  root_cause: |
+    On 2026-07-29, an engineer needed to backfill just 2026-07-28 to fix
+    a bad upstream input. They ran the backfill CLI with
+    `--start-date 2026-07-28 --days 4`, believing `--days` set a
+    4-day trailing lookback window for internal feature computation
+    (a similarly-named concept used elsewhere in the codebase), when it
+    actually specifies how many sequential run_dates to reprocess
+    starting from --start-date. The backfill reprocessed and overwrote
+    2026-07-28 through 2026-07-31 -- not just the intended day.
+
+    2026-07-29 through 2026-07-31 were already correct and had already
+    been consumed by the weekly rollup job that ran on 2026-08-01.
+    Reprocessing overwrote those partitions with freshly recomputed
+    values, but nothing re-triggered the downstream rollup, so the
+    rollup report still reflects the old, pre-backfill numbers --
+    silently inconsistent with the current partitions for those 3 days.
+
+  causal_chain:
+    - a bad upstream input is discovered for 2026-07-28, requiring a backfill of that single day
+    - the engineer runs the backfill CLI with --start-date 2026-07-28 --days 4, intending a 4-day feature lookback, not realizing --days means "reprocess this many sequential run_dates"
+    - the backfill reprocesses and overwrites partitions for 07-28, 07-29, 07-30, and 07-31
+    - 07-29 through 07-31 were already correct and had already been aggregated into the weekly rollup run on 2026-08-01
+    - the backfill overwrites those partitions with freshly recomputed values without re-triggering the rollup
+    - the rollup report (computed once, on 08-01) is now silently stale relative to the current partitions for 3 of the 7 days, with no task failure to flag it
+
+  # Plausible-but-wrong causes present in the context.
+  distractors:
+    - git_log.txt shows an unrelated commit fixing a rollup formatting bug merged the same week
+    - backfill_cli.py's --days docstring is genuinely ambiguous, but the flag's actual behavior is deterministic and fully logged in backfill_run_log.txt -- easy to blame "unclear docs" without tracing what the flag actually did that day
+    - model_registry.csv-equivalent info shows no model changes around this date -- correctly rules out a model-related explanation, doesn't address the real cause
+    - row_counts.csv for 07-29 through 07-31 looks nominal (same row count before and after the backfill) -- true, and easy to conclude "nothing changed" if you only check row counts rather than the values feeding the rollup
+
+  acceptable_fixes:
+    - description: |
+        Fix backfill_cli.py so --days cannot silently reprocess dates
+        beyond what was requested -- rename/clarify the parameter,
+        default to reprocessing only the single specified date unless
+        a range is explicitly given, and require explicit confirmation
+        when a backfill touches a date range wider than one day.
+    - description: |
+        Make the weekly rollup dependency-aware -- automatically
+        invalidate and re-trigger downstream rollups whenever any
+        partition they consumed gets overwritten or backfilled, instead
+        of rollups being a one-time, fire-and-forget computation.
+  partial_credit_fixes:
+    - description: Add a warning/confirmation prompt in the backfill CLI whenever --days > 1, without resolving the underlying ambiguity
+    - description: Manually re-run the weekly rollup after any backfill (procedural, relies on humans remembering)
+  verification: verify/test_fix.py
+
+# Anti-gaming: agent must name the mechanism, not just the symptom.
+required_answer_elements:
+  - identifies the --days 4 backfill flag reprocessing 07-28 through 07-31 (not just 07-28) as the trigger
+  - identifies that the weekly rollup wasn't re-triggered after the backfill overwrote already-aggregated partitions as the mechanism for the inconsistency
+  - does not conclude this is a row-duplication issue like s002 -- partitions are cleanly overwritten, not appended; the bug is a stale downstream aggregate, not duplicate data

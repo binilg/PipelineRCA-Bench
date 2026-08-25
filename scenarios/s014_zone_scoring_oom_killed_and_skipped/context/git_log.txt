@@ -1,0 +1,3 @@
+commit 4a90e2c  2026-08-10  Adjust Z_SE scoring schedule to run 15 minutes earlier
+commit b13d7f0  2026-06-01  Set default memory limit for scoring-zone-* pods to 4Gi
+commit 9c2e8a1  2026-01-15  Add best-effort skip-and-continue policy for per-zone scoring tasks

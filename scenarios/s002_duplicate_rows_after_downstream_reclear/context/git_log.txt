@@ -1,0 +1,4 @@
+commit a1c4f92  2026-07-15  Onboard 3 new models (M_0300-M_0302) for expanded SKU coverage
+commit 5e9b2a0  2026-07-15  Adjust forecast_qty rounding to 1 decimal place
+commit d83f716  2026-07-08  Increase publish_to_warehouse HTTP timeout from 60s to 120s
+commit 6a2c1e4  2026-06-30  Add write_forecast_partition parquet append writer (initial implementation)

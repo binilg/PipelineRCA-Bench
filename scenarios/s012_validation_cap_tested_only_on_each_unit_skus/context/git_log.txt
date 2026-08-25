@@ -1,0 +1,3 @@
+commit 8b3f0d2  2026-05-04  Add forecast_qty validation cap (5000) to catch scoring-bug outliers -- tested against dev dataset, see test_validation_rule.py
+commit c40e771  2025-03-02  Onboard Z_SW bulk beverage/pantry SKUs (case-unit) to production catalog
+commit 21a9f6b  2026-07-30  Unrelated: bump pandas pin to 2.2.3

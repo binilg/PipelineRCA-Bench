@@ -1,0 +1,4 @@
+2026-07-13 04:10:01 INFO  [uplift_health_check] run_date=2026-07-13 total_forecast_qty=15,644,900 prior_day_total=15,489,220 uplift=+1.0% (threshold 10%) status=OK
+2026-07-14 04:10:03 INFO  [uplift_health_check] run_date=2026-07-14 total_forecast_qty=15,812,340 prior_day_total=15,644,900 uplift=+1.1% (threshold 10%) status=OK
+2026-07-15 04:10:02 INFO  [uplift_health_check] run_date=2026-07-15 total_forecast_qty=16,088,505 prior_day_total=15,812,340 uplift=+1.7% (threshold 10%) status=OK
+2026-07-16 04:10:07 WARN  [uplift_health_check] run_date=2026-07-16 total_forecast_qty=31,822,410 prior_day_total=16,088,505 uplift=+97.8% (threshold 10%) status=ALERT

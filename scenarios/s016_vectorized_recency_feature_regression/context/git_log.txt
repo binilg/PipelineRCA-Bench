@@ -1,0 +1,3 @@
+commit e4a1c90  2026-08-10  Rewrite days_since_last_sale() as vectorized pandas (perf: 40s -> 1.2s for full catalog)
+commit 9b2f0d3  2026-08-09  Bump logging library to 2.4.1 (unrelated)
+commit 51c7a88  2026-03-02  Original loop-based days_since_last_sale() with explicit no-history branch (sentinel=999)

@@ -1,0 +1,9 @@
+# Cloud provider status page (region: ap-southeast-2), archived excerpt
+
+[2026-08-11] Elevated capacity constraints for c6i.2xlarge instances in
+ap-southeast-2. Some capacity requests may experience delays or be
+unfulfilled during peak hours. Provider engineering is aware. ETA for
+resolution: rolling, expect intermittent constraints through 2026-08-18.
+
+[2026-08-18] Capacity constraints for c6i.2xlarge in ap-southeast-2
+resolved.

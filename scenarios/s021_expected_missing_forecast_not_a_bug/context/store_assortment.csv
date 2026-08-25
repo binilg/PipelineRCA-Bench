@@ -1,0 +1,13 @@
+# Which sku_ids are ranged (carried) at which stores. A sku-store pair
+# not listed here means that store does not stock that SKU.
+sku_id,store_id
+SKU_10233,ST_0044
+SKU_10233,ST_0091
+SKU_10388,ST_0044
+SKU_10388,ST_0091
+SKU_10388,ST_0212
+# Note: SKU_10233 is NOT ranged at ST_0300, ST_0301, or ST_0302.
+# SKU_10388 is NOT ranged at ST_0155, ST_0156, ST_0157, or ST_0158.
+# (Both SKUs are ranged at other stores not shown in the missing-combinations
+# report, which is why they're in the catalog as active with real sales
+# history -- they're simply not carried at these specific stores.)

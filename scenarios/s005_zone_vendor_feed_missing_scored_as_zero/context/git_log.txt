@@ -1,0 +1,3 @@
+commit b7a20e1  2026-08-01  Adjust Z_NE territory boundary polygon (unrelated GIS update)
+commit 3d9f6c2  2026-07-20  Add per-zone feed-landing status log to ingestion-bot
+commit 88e1a44  2026-06-15  Initial vendor actuals ingestion join (LEFT JOIN + fillna(0.0))

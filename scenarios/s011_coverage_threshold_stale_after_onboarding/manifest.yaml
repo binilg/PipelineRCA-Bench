@@ -1,0 +1,78 @@
+id: s011
+title: The coverage check's expected-row threshold was never updated after new zones were onboarded
+category: data_quality_gate_failure
+difficulty: easy
+stack: [python, pandas]
+
+symptom: |
+  On 2026-08-12, the coverage check for daily_forecast_scoring reported
+  "PASS" and the DAG completed green. Days later, the inventory
+  allocation team notices that a large number of SKUs are simply absent
+  from the 2026-08-12 forecast entirely -- not wrong values, just
+  missing.
+
+  Investigate why the coverage check didn't catch an incomplete
+  partition.
+
+context_files:
+  - context/coverage_check.py
+  - context/worker_crash.log
+  - context/scoring_summary.log
+  - context/model_registry.csv
+  - context/git_log.txt
+
+ground_truth:
+  root_cause: |
+    coverage_check's min_expected_rows threshold (1,000,000) was set
+    months ago when the pipeline had ~255 active models producing
+    roughly 1.28M rows/day, intended as a tripwire for losing ~20%+ of
+    expected volume. Since then, several zones/models were onboarded,
+    raising the true expected daily volume to ~1.30-1.35M rows, but
+    nobody revisited the threshold.
+
+    On 2026-08-12, a worker crash partway through scoring caused only a
+    subset of models (~80 of 260) to complete before a downstream step
+    force-completed on a timeout, writing a partition with only
+    ~1,050,000 rows -- a genuine ~20% shortfall against current expected
+    volume. But 1,050,000 still clears the stale 1,000,000 threshold, so
+    coverage_check reports PASS, and the partial partition (missing
+    ~180 models' worth of SKUs entirely) proceeds downstream as if
+    complete.
+
+  causal_chain:
+    - coverage_check's min_expected_rows threshold was set months ago based on the model count/row volume at that time (~1.28M rows for 255 models)
+    - new zones/models were onboarded since then, raising true expected daily volume to ~1.30-1.35M, but the threshold was never revisited
+    - on 2026-08-12, a worker crash partway through scoring causes only ~80 of 260 models to complete before a timeout forces the job to finalize with whatever was written
+    - the resulting partition has ~1,050,000 rows -- a real ~20% shortfall against current expected volume, but still above the stale 1,000,000 threshold
+    - coverage_check reports PASS since it only checks actual-vs-threshold, not actual-vs-current-active-model-count
+    - the incomplete partition (missing ~180 models' SKUs entirely) proceeds downstream; nothing flags it until someone notices specific SKUs are absent
+
+  # Plausible-but-wrong causes present in the context.
+  distractors:
+    - git_log.txt shows the onboarding commits for the new zones/models, correctly documented -- real, but nobody connected "new models onboarded" to "the coverage threshold needs updating too"
+    - worker_crash.log clearly documents the crash and timeout -- real and directly relevant, but only explains why the partition is incomplete, not why the check that should have caught it didn't
+    - coverage_check.py's comparison logic (actual_rows >= min_expected_rows) is completely correct as written -- the bug isn't the comparison, it's the staleness of the configured threshold value
+    - "scoring_summary.log shows \"Coverage check: PASS (1,050,000 >= 1,000,000)\" -- technically true and unremarkable-looking if you don't know the current expected volume"
+
+  acceptable_fixes:
+    - description: |
+        Derive the coverage threshold dynamically from the current
+        active model count in model_registry.csv (e.g.
+        expected_rows = active_models * avg_rows_per_model *
+        (1 - tolerance)) instead of a hardcoded static number, so it
+        automatically stays correct as models are onboarded or
+        decommissioned.
+    - description: |
+        Add a review step to the model-onboarding runbook that
+        requires updating (or re-validating) the coverage threshold
+        whenever active model count changes materially.
+  partial_credit_fixes:
+    - description: Manually raise the static threshold to match current volume (fixes it for now, will go stale again next time models are added)
+    - description: Add a secondary check on per-model presence (are all expected model_ids present in the output) rather than fixing the row-count threshold
+  verification: verify/test_fix.py
+
+# Anti-gaming: agent must separate the two bugs.
+required_answer_elements:
+  - identifies the stale, never-updated min_expected_rows threshold as the reason the check passed on an incomplete partition
+  - identifies the worker crash/timeout on 2026-08-12 as the actual cause of the incomplete data, distinct from why the check missed it
+  - proposes deriving the threshold from current model count rather than just raising the static number once
