@@ -1,9 +1,16 @@
 """Aggregates per-scenario results into JSON + a markdown table, plus a
-summary by category/difficulty -- report.py from phase 2 item 12."""
+summary by category/difficulty -- report.py from phase 2 item 12.
+
+Scenarios excluded by structural validation are carried through as
+SkippedScenario records and reported alongside the scores. A benchmark
+whose subject is silent failure must not silently shrink its own
+denominator: every report states how many scenarios were attempted and
+how many produced a score.
+"""
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from statistics import mean
 
@@ -22,6 +29,14 @@ class ScenarioResult:
     agent_name: str
 
 
+@dataclass
+class SkippedScenario:
+    """A scenario excluded from the run because validate_scenario() rejected
+    it. Recorded so the reported denominator is always auditable."""
+    scenario_id: str
+    errors: list[str] = field(default_factory=list)
+
+
 def to_dict(results: list[ScenarioResult]) -> list[dict]:
     return [
         {
@@ -37,8 +52,18 @@ def to_dict(results: list[ScenarioResult]) -> list[dict]:
     ]
 
 
-def write_json(results: list[ScenarioResult], path: Path) -> None:
-    Path(path).write_text(json.dumps(to_dict(results), indent=2))
+def write_json(
+    results: list[ScenarioResult],
+    path: Path,
+    skipped: list[SkippedScenario] | None = None,
+) -> None:
+    skipped = skipped or []
+    payload = {
+        "summary": summarize(results, skipped),
+        "results": to_dict(results),
+        "skipped": [asdict(s) for s in skipped],
+    }
+    Path(path).write_text(json.dumps(payload, indent=2))
 
 
 def to_markdown_table(results: list[ScenarioResult]) -> str:
@@ -56,9 +81,18 @@ def to_markdown_table(results: list[ScenarioResult]) -> str:
     return "\n".join(rows)
 
 
-def summarize(results: list[ScenarioResult]) -> dict:
+def summarize(
+    results: list[ScenarioResult],
+    skipped: list[SkippedScenario] | None = None,
+) -> dict:
+    skipped = skipped or []
+    n_attempted = len(results) + len(skipped)
     if not results:
-        return {"n_scenarios": 0}
+        return {
+            "n_attempted": n_attempted,
+            "n_scored": 0,
+            "n_skipped": len(skipped),
+        }
 
     by_category: dict[str, list[float]] = {}
     by_difficulty: dict[str, list[float]] = {}
@@ -67,7 +101,9 @@ def summarize(results: list[ScenarioResult]) -> dict:
         by_difficulty.setdefault(r.difficulty, []).append(r.judge_score.overall)
 
     return {
-        "n_scenarios": len(results),
+        "n_attempted": n_attempted,
+        "n_scored": len(results),
+        "n_skipped": len(skipped),
         "overall_mean_score": round(mean(r.judge_score.overall for r in results), 4),
         "fix_pass_rate": round(mean(1.0 if r.fix_result.passed else 0.0 for r in results), 4),
         "mean_score_by_category": {k: round(mean(v), 4) for k, v in sorted(by_category.items())},
@@ -75,12 +111,29 @@ def summarize(results: list[ScenarioResult]) -> dict:
     }
 
 
-def write_markdown_report(results: list[ScenarioResult], path: Path) -> None:
-    summary = summarize(results)
+def write_markdown_report(
+    results: list[ScenarioResult],
+    path: Path,
+    skipped: list[SkippedScenario] | None = None,
+) -> None:
+    skipped = skipped or []
+    summary = summarize(results, skipped)
+    n_scored = summary.get("n_scored", 0)
+    n_attempted = summary.get("n_attempted", 0)
+
     lines = [
         f"# PipelineRCA-Bench report ({results[0].agent_name if results else 'n/a'})",
         "",
-        f"Scenarios run: {summary.get('n_scenarios', 0)}",
+        f"Scenarios scored: {n_scored} of {n_attempted} attempted",
+    ]
+    if skipped:
+        lines.append("")
+        lines.append(
+            f"**WARNING: {len(skipped)} scenario(s) were excluded by structural "
+            "validation and are NOT reflected in any score below.**"
+        )
+    lines += [
+        "",
         f"Overall mean diagnosis score: {summary.get('overall_mean_score', 0):.0%}",
         f"Fix verification pass rate: {summary.get('fix_pass_rate', 0):.0%}",
         "",
@@ -93,4 +146,11 @@ def write_markdown_report(results: list[ScenarioResult], path: Path) -> None:
     for diff, score in summary.get("mean_score_by_difficulty", {}).items():
         lines.append(f"- {diff}: {score:.0%}")
     lines += ["", "## Per-scenario", "", to_markdown_table(results), ""]
+
+    if skipped:
+        lines += ["## Excluded scenarios", ""]
+        for s in skipped:
+            lines.append(f"- **{s.scenario_id}**: {'; '.join(s.errors)}")
+        lines.append("")
+
     Path(path).write_text("\n".join(lines))
