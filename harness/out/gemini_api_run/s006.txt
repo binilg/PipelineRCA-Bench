@@ -1,0 +1,13 @@
+ROOT CAUSE:
+The `upload_to_partner_feed` task calls `notify_partner_webhook` unconditionally before executing `_transfer_file` on every task execution attempt, without gating on upload success or including an idempotency key. On the first attempt for run_date 2026-07-25, `notify_partner_webhook` successfully sent a notification at 05:10 UTC prior to `_transfer_file` timing out and failing the task. When the task was retried on attempt 2 at 05:16 UTC, `notify_partner_webhook` ran again and dispatched a second notification before completing the upload, leading the partner system to trigger ingestion twice for the same run date.
+
+CAUSAL CHAIN:
+1. `upload_to_partner_feed` begins attempt 1 and calls `notify_partner_webhook` before initiating the file transfer.
+2. The partner receives the first "forecast-ready" webhook at 05:10 UTC and triggers downstream ingestion.
+3. `_transfer_file` times out after 60 seconds on attempt 1, causing the task to fail and requeue.
+4. The task retries at 05:16 UTC for attempt 2 and executes `notify_partner_webhook` a second time before `_transfer_file`.
+5. The partner receives the second "forecast-ready" webhook at 05:16 UTC and ingests the forecast file a second time due to lack of idempotency/deduplication.
+6. `_transfer_file` succeeds on attempt 2, marking the task complete internally while leaving duplicate ingestions on the partner side.
+
+PROPOSED FIX:
+Move the `notify_partner_webhook(run_date)` call in `dag.py` so it executes after `_transfer_file(run_date, timeout_s=60)` succeeds rather than before. In addition, configure an `idempotency_key` (such as `f"daily_forecast-{run_date}"`) in `partner_feed_config.yaml` and include it in the webhook payload so partner endpoints can deduplicate requests across retries.

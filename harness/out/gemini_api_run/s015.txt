@@ -1,0 +1,15 @@
+ROOT CAUSE:
+Intermittent cloud provider capacity constraints for `c6i.2xlarge` instances prevented the worker pool from scaling up to full capacity during daily forecast runs. When available worker count was lower than the total zone count, `scheduler.py` deferred unassigned zones without re-queuing them or raising a task failure. Downstream, `coverage_check.py` validated output using an aggregate row threshold (`1,250,000` rows) that was too low to detect a ~1% row deficit from 1–3 missing zones, allowing incomplete runs to finish with a `SUCCESS` status and leaving deferred zones missing from daily forecasts.
+
+CAUSAL CHAIN:
+1. Regional cloud provider capacity constraints on `c6i.2xlarge` instances prevented autoscaling from provisioning enough workers before the scheduling deadline.
+2. `scheduler.py` assigned available workers to the first batch of zones and put remaining zones into a `deferred` list.
+3. `scheduler.py` logged deferred zones as warnings but deliberately returned only assigned zones without raising an error or re-queuing deferred zones for subsequent execution.
+4. Unassigned zones were silently excluded from the scoring step for that run date.
+5. `coverage_check.py` checked total row count against `MIN_EXPECTED_ROWS = 1_250_000`, which passed despite missing 1–3 zones (~1% lower row count).
+6. The DAG orchestrator reported overall `SUCCESS`, hiding the fact that specific zones lacked forecasts.
+
+PROPOSED FIX:
+1. Modify `scheduler.py` to re-queue deferred zones or raise a retryable error if any zones remain unscheduled by the deadline, ensuring missing zones are processed before pipeline completion.
+2. Update `coverage_check.py` to validate complete zone coverage explicitly (e.g., verifying all 260 required zone IDs exist in the generated dataset) rather than relying solely on a loose aggregate row threshold.
+3. Update the worker pool configuration to specify fallback instance types (e.g., `c6a.2xlarge` or `c5.2xlarge`) so worker capacity can scale even during single-instance-type provider shortages.

@@ -1,0 +1,14 @@
+ROOT CAUSE:
+The forecast collapse on 2026-08-04 was caused by the trailing_avg feature calculation silently treating missing actuals data as zero demand. On 2026-08-02, the daily_forecast_scoring DAG failed due to a transient database connection issue, and no actuals partition was written for that date. When the 2026-08-04 run executed, it calculated a 3-day trailing average using data from 2026-08-03, 2026-08-02, and 2026-08-01. Because the 2026-08-02 partition was missing, the feature_loader.py code caught the FileNotFoundError and substituted 0.0 for that day's actuals, artificially deflating the trailing average by approximately one-third. This deflated feature value propagated through all 260 active models during scoring, producing systematically lower forecasts across the board.
+
+CAUSAL CHAIN:
+1. On 2026-08-02, the daily_forecast_scoring DAG failed due to a transient database connection issue, and no actuals partition was written for run_date 2026-08-02
+2. The on-call engineer decided not to backfill immediately, deferring to the weekly backfill sweep on Friday
+3. On 2026-08-04, the scoring pipeline ran successfully and calculated trailing_avg features for each model using a 3-day window (2026-08-03, 2026-08-02, 2026-08-01)
+4. When trailing_avg attempted to load the 2026-08-02 partition, it caught FileNotFoundError and substituted 0.0 instead of failing or raising an alert
+5. The 3-day average was computed as (actuals_08-03 + 0.0 + actuals_08-01) / 3, reducing the feature value by roughly 33%
+6. All 260 models were scored with this artificially low trailing_avg feature, producing systematically depressed forecasts
+7. The total forecast_qty dropped 42% compared to the prior day, triggering the uplift health check alert
+
+PROPOSED FIX:
+Change the trailing_avg function in feature_loader.py to raise an exception instead of silently substituting 0.0 when actuals partitions are missing. The current behavior masks data quality issues and creates incorrect features. The function should fail loudly when required input data is unavailable, forcing either immediate backfill or explicit handling of missing data scenarios. Additionally, implement an immediate backfill policy for failed scoring runs rather than deferring to weekly sweeps, since the 3-day trailing window creates a dependency on recent partitions. For the immediate incident, backfill 2026-08-02 actuals and re-run scoring for 2026-08-04.

@@ -1,0 +1,14 @@
+ROOT CAUSE:
+On 2026-07-18, Merchandising added 40 new SKUs under a new `sku_group` (`SEASONAL_PROMO`) to `sku_catalog.csv`, but the active scoring models and `training_config.yaml` were last updated on 2026-06-01 and only recognize six categorical values. When `feature_pipeline.py` encoded `SEASONAL_PROMO`, `_SKU_GROUP_INDEX.get(sku_group, 0)` failed to find the key in `known_values` and silently defaulted to index `0` (`GROCERY`). Consequently, all `SEASONAL_PROMO` SKUs were scored using `GROCERY` feature representations, causing the models to produce severely inaccurate forecasts (187.4% MAPE) without throwing any pipeline errors.
+
+CAUSAL CHAIN:
+1. Merchandising committed catalog changes adding 40 SKUs with `sku_group="SEASONAL_PROMO"` on 2026-07-18 (commit `c92a41f`).
+2. `training_config.yaml` (last updated on 2026-06-01) did not contain `SEASONAL_PROMO` in `feature_encoders.sku_group.known_values`.
+3. During the 2026-07-20 forecast run, `score_zone` invoked `build_features` for the new `SEASONAL_PROMO` SKUs.
+4. `encode_sku_group` attempted to look up `SEASONAL_PROMO` in `_SKU_GROUP_INDEX` and defaulted to index `0` (`GROCERY`).
+5. The model scored all 40 `SEASONAL_PROMO` SKUs across all six zones as regular `GROCERY` items, completing without runtime errors.
+6. Once actual demand data arrived 3 days later, the accuracy monitor detected a 187.4% MAPE anomaly for `sku_group=SEASONAL_PROMO`.
+
+PROPOSED FIX:
+1. Retrain the model family and regenerate `training_config.yaml` so that `known_values` includes `SEASONAL_PROMO` and the model learns appropriate weights for the new category.
+2. Modify `encode_sku_group` in `feature_pipeline.py` to raise an explicit exception or emit a high-severity warning when an unknown category is encountered during inference rather than silently mapping unrecognized categories to index `0`.

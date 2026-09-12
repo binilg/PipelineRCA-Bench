@@ -1,0 +1,14 @@
+ROOT CAUSE:
+During the schema migration on 2026-08-12, the pipeline output table was updated from `forecast_output` to `forecast_output_v2` in `write_task.py`, but the static permission file `access_provisioning_config.yaml` was not updated with the new table entry. Because `access_provisioning.py` relies solely on `access_provisioning_config.yaml` to assign read grants and silently skips unlisted tables, downstream read permissions for `forecast_output_v2` were never granted to consumer service accounts (including `inventory_planning_svc`), causing downstream reads to fail with a permission-denied error despite the forecast pipeline successfully generating and writing the data.
+
+CAUSAL CHAIN:
+1. On 2026-08-12, commit `d0a7c21` changed the forecast output table from `forecast_output` to `forecast_output_v2` in `write_task.py` without updating `access_provisioning_config.yaml`.
+2. On 2026-08-13, `write_forecast_partition` successfully wrote 1,861,220 rows to `forecast_output_v2` because the writing service account has implicit write privileges on its own created tables.
+3. The nightly `run_access_provisioning()` job executed and checked `access_provisioning_config.yaml`, which only contained read grant definitions for `forecast_output` and `model_registry`.
+4. Because `forecast_output_v2` was absent from `access_provisioning_config.yaml`, `access_provisioning.py` silently skipped granting permissions on `forecast_output_v2`.
+5. The downstream inventory-planning nightly job attempted to query `forecast_output_v2` using `inventory_planning_svc` and failed with `PermissionDeniedError`.
+
+PROPOSED FIX:
+1. Update `access_provisioning_config.yaml` to include `forecast_output_v2` under `managed_tables` with read grants for `inventory_planning_svc`, `replenishment_svc`, and `bi_reporting_svc` (and remove or deprecate the legacy `forecast_output` entry).
+2. Manually execute `run_access_provisioning()` or grant SELECT privileges on `forecast_output_v2` to `inventory_planning_svc` immediately so downstream jobs can read the 2026-08-13 forecast output.
+3. Optionally update `access_provisioning.py` to log warnings or throw errors when active output tables in the pipeline registry are missing from `access_provisioning_config.yaml`.

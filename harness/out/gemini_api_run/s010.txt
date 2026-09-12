@@ -1,0 +1,20 @@
+ROOT CAUSE:
+In `context/stability_check.py`, the `_reference_date` helper function subtracts `dt.timedelta(days=0)` from `run_date` instead of `dt.timedelta(days=1)` due to a bug introduced during refactoring on 2026-07-20. As a result, `run_stability_check` loads today's input partition for both `today_df` and `ref_df`, comparing the daily partition against itself. This produces a Population Stability Index (PSI) of 0.00 every day regardless of distribution changes, allowing the upstream data corruption on 2026-08-10 to pass the stability gate undetected.
+
+CAUSAL CHAIN:
+1. On 2026-07-20, commit `d82f4a1` refactored `_reference_date` in `stability_check.py` and erroneously set `dt.timedelta(days=0)` instead of `dt.timedelta(days=1)`.
+2. Unit tests in `test_stability_check.py` only invoked `compute_psi` directly on synthetic DataFrames, leaving `_reference_date` and `run_stability_check` unexercised.
+3. On 2026-08-10, an upstream ETL job used a stale exchange rate table, corrupting `avg_unit_price` by ~3x across ~40% of SKUs.
+4. The `daily_forecast_scoring` DAG ran `run_stability_check` with `run_date="2026-08-10"`.
+5. `_reference_date("2026-08-10")` returned `"2026-08-10"`, causing `run_stability_check` to load `/warehouse/inputs/run_date=2026-08-10` for both `today_df` and `ref_df`.
+6. `compute_psi` evaluated identical datasets, yielding `PSI=0.00` (below `PSI_THRESHOLD = 0.2`), logging a "Green" status and allowing the pipeline run to proceed with corrupted data.
+
+PROPOSED FIX:
+Update `_reference_date` in `context/stability_check.py` to subtract `dt.timedelta(days=1)`:
+
+```python
+def _reference_date(run_date: str) -> str:
+    return (dt.date.fromisoformat(run_date) - dt.timedelta(days=1)).isoformat()
+```
+
+Additionally, update `test_stability_check.py` to add tests for `_reference_date` and `run_stability_check` to prevent regression.

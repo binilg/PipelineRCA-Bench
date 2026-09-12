@@ -1,0 +1,11 @@
+ROOT CAUSE:
+The post-scoring validation rule (`validation_rule.py`) applies a hardcoded cap of 5,000 (`MAX_FORECAST_QTY_PER_SKU`) to all forecast quantities regardless of SKU `unit_type`. This cap was calibrated against a dev dataset consisting strictly of single-unit (`EACH`) SKUs from zone Z_N. When high-volume case-unit (`CASE`) SKUs were introduced in zone Z_SW, their legitimate forecast outputs exceeding 5,000 were misinterpreted as model scoring bugs and clipped down to 5,000, causing inventory planning to persistently under-provision stock.
+
+CAUSAL CHAIN:
+1. High-volume `CASE` unit SKUs (e.g., SKU_30011, SKU_30012, SKU_30014) were onboarded in zone Z_SW with legitimate daily forecast demands ranging from ~7,000 to ~9,800 units.
+2. The post-scoring validation rule was configured with a hardcoded cap of 5,000 based on a dev dataset that only contained `EACH` SKUs from zone Z_N (where maximum observed forecast was 3,180).
+3. During scoring runs, `validate_and_clip` processes valid model output forecasts exceeding 5,000 for these Z_SW `CASE` SKUs and clips them down to exactly 5,000, logging a mild INFO message without raising pipeline errors.
+4. Downstream inventory planning receives the truncated 5,000-unit daily forecast instead of actual higher predictions, leading to recurring stockouts in zone Z_SW.
+
+PROPOSED FIX:
+Update `validate_and_clip` in `validation_rule.py` to incorporate SKU metadata (specifically `unit_type` from `sku_catalog.csv`). Either remove the cap for `CASE` SKUs, establish separate, higher validation thresholds based on `unit_type` (or zone), or calculate unit-aware dynamically scaled bounds. Additionally, backfill `CASE` SKUs into the dev dataset to ensure future validation testing covers all production packaging types.

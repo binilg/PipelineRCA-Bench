@@ -1,0 +1,15 @@
+ROOT CAUSE:
+In the vectorized refactor of `days_since_last_sale()` (commit `e4a1c90`), missing `last_sale_date` values (`NaT`) for SKUs with no sales history were handled using `diff.fillna(0)` instead of preserving the original implementation's explicit no-history sentinel value of `999` (commit `51c7a88`). Setting `days_since_last_sale` to `0` causes the forecast model to treat newly launched SKUs with zero sales history as having sold earlier today—the strongest recency signal—leading to extreme over-forecasting.
+
+CAUSAL CHAIN:
+1. Commit `e4a1c90` replaced the loop-based `days_since_last_sale()` with a vectorized implementation that used `diff.fillna(0)` to fill `NaN` values resulting from `NaT` `last_sale_date` entries.
+2. The QA side-by-side comparison filtered the test sample to `sales_history_days >= 180`, omitting zero-history SKUs and allowing the improper default value to pass testing unnoticed.
+3. When daily scoring ran on production data, newly launched SKUs with zero sales history were assigned `days_since_last_sale = 0` instead of the sentinel value `999`.
+4. The scoring model interpreted `0` as maximum sales recency, heavily boosting demand predictions and generating severe over-forecasting (MAPE > 240%) specifically for SKUs launched within the last 30 days.
+
+PROPOSED FIX:
+Update `days_since_last_sale()` in `context/recency_feature.py` to fill `NaN` values with `999` instead of `0`:
+```python
+return diff.fillna(999)
+```
+Additionally, update `test_recency_feature.py` to include test cases with `NaT` in `last_sale_date` to verify that zero-history SKUs evaluate to `999`.

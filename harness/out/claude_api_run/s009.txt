@@ -1,0 +1,25 @@
+ROOT CAUSE:
+The demand_forecast_v5 model was trained with `promo_flag` as a feature and learned to use it to predict higher demand for SKUs on promotion. However, when v5 was promoted to production on 2026-08-06, the `serving_feature_manifest.yaml` was not updated to include `promo_flag` in the `active_model_features` list. As a result, the scoring pipeline does not include `promo_flag` in the feature vectors it builds. The `score_sku` function fills missing features with 0, so all SKUs are being scored with `promo_flag=0` (not on promotion) even when they actually are on promotion. This causes the model to systematically underforecast demand for promoted SKUs since it believes they are not on promotion.
+
+CAUSAL CHAIN:
+1. On 2026-08-06, demand_forecast_v5 is promoted to production; this model was trained with five features including `promo_flag`
+2. The `serving_feature_manifest.yaml` file was last updated 2026-07-30 (one week before promotion) and still lists only the four features used by v4, without `promo_flag`
+3. The scoring pipeline calls `load_serving_features()` which reads the manifest and returns only the four legacy features
+4. `build_feature_vector()` constructs feature vectors containing only those four features; `promo_flag` is never included
+5. `score_sku()` receives vectors missing `promo_flag` and fills it with 0 (the default for missing features)
+6. The v5 model receives `promo_flag=0` for all SKUs, interpreting them as not being on promotion
+7. For SKUs that are actually on promotion (per `promo_calendar.csv`), the model predicts lower demand than reality, causing systematic underforecasting
+8. Non-promo SKUs are forecast correctly because `promo_flag=0` is the correct value for them
+
+PROPOSED FIX:
+Update `/config/serving_feature_manifest.yaml` to add `promo_flag` to the `active_model_features` list. The corrected manifest should read:
+```yaml
+active_model: demand_forecast_v5
+active_model_features:
+  - sku_group_idx
+  - zone_idx
+  - avg_unit_price_z
+  - trailing_3d_avg
+  - promo_flag
+```
+Additionally, implement a deployment checklist or automated validation that ensures the serving feature manifest matches the features expected by the model being promoted, to prevent this class of error in future promotions.

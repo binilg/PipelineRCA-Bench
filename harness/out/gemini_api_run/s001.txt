@@ -1,0 +1,14 @@
+ROOT CAUSE:
+The root cause is missing model pickle artifacts (`model.pkl`) for models M_0147, M_0148, and M_0149 under zone `Z_NW` in `/models/prod/Z_NW/` for run date 2026-07-14. These three models were registered on 2026-07-11 following a territory realignment, but the upstream model training/deployment job failed to generate or publish their `model.pkl` artifacts. When `daily_forecast_scoring` executed for 2026-07-14, attempts to load the artifacts threw a `FileNotFoundError`. Finding no prior historical model artifacts for zone `Z_NW`, the DAG invoked `_fallback_to_prior_day` for all three models and copied forecast data from 2026-07-13. Because 3 fallbacks were within the `FALLBACK_TOLERANCE` threshold of 5, the Airflow task completed as successful, triggering downstream alerts for fallback forecast usage.
+
+CAUSAL CHAIN:
+1. On 2026-07-11, zone Z_NW was added and models M_0147, M_0148, and M_0149 were set to active in `model_registry.csv`.
+2. Upstream artifact publishing failed to produce `model.pkl` files for models M_0147, M_0148, and M_0149 under `/models/prod/Z_NW/{model_id}/2026-07-14/`.
+3. During execution on 2026-07-14, `score_one` encountered `FileNotFoundError` when trying to open `/models/prod/Z_NW/{model_id}/2026-07-14/model.pkl` for M_0147, M_0148, and M_0149.
+4. `_latest_artifact` found no prior model artifacts stored for zone `Z_NW`, triggering `_fallback_to_prior_day`.
+5. `_fallback_to_prior_day` read partition data from `2026-07-13` for M_0147, M_0148, and M_0149, stamped them with `run_date=2026-07-14`, and returned them.
+6. The total fallbacks count (3) did not exceed `FALLBACK_TOLERANCE` (5), allowing the DAG to pass without error while downstream fallback alerts fired.
+
+PROPOSED FIX:
+1. Fix the upstream model training and artifact deployment pipeline for zone Z_NW so that `model.pkl` artifacts for M_0147, M_0148, and M_0149 are generated and published to `/models/prod/Z_NW/{model_id}/{run_date}/model.pkl` daily.
+2. Publish the missing `model.pkl` artifacts for M_0147, M_0148, and M_0149 for 2026-07-14 and trigger a re-run of `daily_forecast_scoring` for `run_date=2026-07-14` to replace the fallback forecasts with actual model predictions.

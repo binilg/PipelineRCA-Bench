@@ -1,0 +1,597 @@
+{
+  "judge": "claude",
+  "judge_model": "claude-sonnet-4-5",
+  "diagnoses_dir": "out\\gemini_api_run",
+  "scenarios_dir": "..\\scenarios",
+  "methodology": "Diagnoses in out\\gemini_api_run graded via claude (claude-sonnet-4-5) using JUDGE_PROMPT_TEMPLATE from harness/scoring/rca_judge.py, ported byte-for-byte into this standalone script, and scored with the identical _score_from_hits formula: overall = (0.6*causal_chain_coverage + 0.4*required_elements_coverage) * distractor_penalty. This is a cross-model grading pass -- the judge model is deliberately different from the model whose diagnoses are being graded, so no model grades its own answers.",
+  "mean": 0.9781,
+  "scenarios": {
+    "s001": {
+      "category": "recovery_temporal_state",
+      "difficulty": "hard",
+      "causal_chain_hits": [
+        true,
+        false,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        false
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 0.8,
+      "required_elements_coverage": 0.6667,
+      "distractor_penalty": 1.0,
+      "overall": 0.7467,
+      "rationale": "The diagnosis correctly identifies the three models (M_0147, M_0148, M_0149) and zone Z_NW, recognizes missing model artifacts as the mechanism, and traces the causal chain from realignment through fallback. However, it fails to identify the specific root cause: that the training DAG's static config was not updated to include Z_NW, instead vaguely attributing it to 'upstream artifact publishing failed.'"
+    },
+    "s002": {
+      "category": "rerun_idempotency_failure",
+      "difficulty": "medium",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 1.0,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 1.0,
+      "rationale": "The diagnosis correctly identifies all six steps of the causal chain, including the network timeout, the --upstream clear re-triggering write_forecast_partition, the append-mode duplication, and the health check detection. All four required elements are satisfied: it identifies the double-run mechanism, the --upstream clear as the trigger, the append-only non-idempotent write as the duplication cause, and does not attribute the uplift to the 3 new models."
+    },
+    "s003": {
+      "category": "train_serving_skew",
+      "difficulty": "medium",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 1.0,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 1.0,
+      "rationale": "The diagnosis correctly identifies all six steps of the causal chain, including the catalog addition on 2026-07-18, the stale training_config.yaml from 2026-06-01, the silent fallback to GROCERY (index 0), the mis-scoring, the green DAG run, and the delayed detection by the accuracy monitor. All three required elements are satisfied: SEASONAL_PROMO identified as new and encoder as stale, silent fallback mechanism explained, and correctly attributes the issue to feature encoding rather than missing models. No distractors were incorrectly cited as root causes."
+    },
+    "s004": {
+      "category": "recovery_temporal_state",
+      "difficulty": "medium",
+      "causal_chain_hits": [
+        true,
+        true,
+        false,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 0.8571,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 0.9143,
+      "rationale": "The diagnosis correctly identifies the missing 2026-08-02 partition as the trigger, the silent 0.0 fallback mechanism, and that scoring itself executed correctly on bad input data. It misses only the intermediate 2026-08-03 dip detail but captures all essential causal steps and avoids all distractors."
+    },
+    "s005": {
+      "category": "recovery_temporal_state",
+      "difficulty": "easy",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 1.0,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 1.0,
+      "rationale": "The diagnosis correctly identifies all six causal chain steps, including the vendor holiday trigger, the LEFT JOIN behavior, the 0.0 fill mechanism, the model scoring impact, and the zone-specific nature of the problem. All three required elements are satisfied, and none of the distractors are incorrectly cited as root causes."
+    },
+    "s006": {
+      "category": "rerun_idempotency_failure",
+      "difficulty": "medium",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 1.0,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 1.0,
+      "rationale": "The diagnosis correctly identifies all six causal chain steps, including that notify_partner_webhook fires unconditionally on every attempt without idempotency, that both the failed and successful attempts each sent independent notifications, and that the retry logic itself worked correctly while the notification side-effect caused the duplication. No distractors were incorrectly cited as root causes."
+    },
+    "s007": {
+      "category": "rerun_idempotency_failure",
+      "difficulty": "medium",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        false
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 0.8,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 0.88,
+      "rationale": "The diagnosis correctly identifies the backfill with --days 4 reprocessing four dates, the lack of rollup re-triggering as the mechanism, and avoids the row-duplication distractor. However, causal step 6 is marked false because the diagnosis claims all four dates (07-28 through 07-31) mismatch, when the ground truth specifies only three days (07-29 through 07-31) disagree\u201407-28 needed the backfill and would match."
+    },
+    "s008": {
+      "category": "train_serving_skew",
+      "difficulty": "hard",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 1.0,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 1.0,
+      "rationale": "The diagnosis correctly identifies all six causal chain steps: the cents-to-dollars migration on 2026-08-04, lack of validation, StandardScaler applying stale statistics, out-of-distribution z-scores, model producing abnormal forecasts for Z_SE only, and DAG success with issue surfacing only in uplift check. All three required elements are satisfied (unit change identified, stale scaler mechanism explained, correct problem type), and no distractors are incorrectly blamed."
+    },
+    "s009": {
+      "category": "train_serving_skew",
+      "difficulty": "medium",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 1.0,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 1.0,
+      "rationale": "The diagnosis correctly identifies all six steps of the causal chain, including that v5 introduced promo_flag, the serving manifest wasn't updated, the feature wasn't computed, the wrapper filled with 0, and this caused systematic underforecasting without raising exceptions. All three required elements are satisfied: promo_flag missing from serving manifest, 0-fill mechanism, and correctly attributing the issue to manifest sync rather than model quality. No distractors were incorrectly cited as root causes."
+    },
+    "s010": {
+      "category": "data_quality_gate_failure",
+      "difficulty": "easy",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 1.0,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 1.0,
+      "rationale": "The diagnosis correctly identifies all elements of the causal chain, including the refactor bug (0-day offset), the self-comparison yielding PSI=0.0, the three-week duration, the upstream ETL corruption, and why the gate failed to catch it. It clearly distinguishes the two separate issues (ETL bug vs. stability check bug) and avoids treating any distractors as root causes."
+    },
+    "s011": {
+      "category": "data_quality_gate_failure",
+      "difficulty": "easy",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 1.0,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 1.0,
+      "rationale": "The diagnosis correctly identifies all causal chain steps: the stale threshold set months ago, new models onboarded without updating the threshold, the worker crash causing partial completion, the resulting row count passing the outdated threshold, the check passing incorrectly, and the incomplete partition proceeding downstream. It addresses all required elements by identifying the stale threshold as the check failure reason, the worker crash as the data incompleteness cause, and proposing model-count-based validation rather than static thresholds. It does not incorrectly blame any distractors as root causes."
+    },
+    "s012": {
+      "category": "data_quality_gate_failure",
+      "difficulty": "hard",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 1.0,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 1.0,
+      "rationale": "The diagnosis correctly identifies all six causal chain steps, including the hardcoded 5,000-unit cap, dev-only testing with EACH SKUs, silent clipping in production for CASE SKUs in Z_SW, lack of distinction in logging, and the resulting stockout pattern. All three required elements are satisfied: the silent clipping mechanism, dev-only testing gap, and specific identification of case-unit SKUs in Z_SW. No distractors were incorrectly cited as root cause."
+    },
+    "s013": {
+      "category": "resource_capacity_lifecycle_failure",
+      "difficulty": "easy",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 1.0,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 1.0,
+      "rationale": "The diagnosis correctly identifies all six steps of the causal chain, including the lifecycle policy trigger, the read-only nature making it eligible, the 90-day threshold, the service role access limitation, and the FileNotFoundError symptom. It satisfies all required elements by identifying the lifecycle policy as root cause, explaining the read-only eligibility issue, and correctly ruling out pipeline code regression. It avoids all distractors."
+    },
+    "s014": {
+      "category": "resource_capacity_lifecycle_failure",
+      "difficulty": "easy",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 1.0,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 1.0,
+      "rationale": "The diagnosis correctly identifies all six causal chain steps, including the SKU spike enlarging the feature matrix, memory limit exceeded, OOM-kill, best-effort skip-and-continue design allowing SUCCESS, zero rows for Z_S, and the OOM event being in infrastructure logs. All three required elements are satisfied: OOM-kill trigger identified, skip-and-continue design explained, and the diagnosis clearly states the pod was killed (not merely slow). No distractors were incorrectly cited as root causes."
+    },
+    "s015": {
+      "category": "resource_capacity_lifecycle_failure",
+      "difficulty": "medium",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 1.0,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 1.0,
+      "rationale": "The diagnosis correctly identifies all six steps of the causal chain, including the VM capacity shortfall trigger, the deferred-not-failed scheduling mechanism, the lack of automatic retry, and why gaps went unnoticed due to aggregate threshold checks. All three required elements are satisfied, and no distractors are incorrectly cited as root causes."
+    },
+    "s016": {
+      "category": "change_management_failure",
+      "difficulty": "medium",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 1.0,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 1.0,
+      "rationale": "The diagnosis correctly identifies all key elements: fillna(0) converting no-sales-history to 0 days (strongest recency signal), test suite filtering to SKUs with >=180 days history missing the regression, and newly launched SKUs as the affected population. All causal chain steps are accurately captured, and no distractors were incorrectly cited as root causes."
+    },
+    "s017": {
+      "category": "change_management_failure",
+      "difficulty": "easy",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 1.0,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 1.0,
+      "rationale": "The diagnosis correctly identifies all six causal chain steps, including the prior manual install in dev, the code change, successful local testing masking the dependency gap, the missing requirements_prod.txt update, the deployment without the library, and the resulting ImportError. All three required elements are present, and none of the distractors are incorrectly cited as root causes."
+    },
+    "s018": {
+      "category": "change_management_failure",
+      "difficulty": "easy",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 1.0,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 1.0,
+      "rationale": "The diagnosis correctly identifies all six steps of the causal chain, including the table migration, successful write, static allowlist mechanism, missing update to the config, lack of grants, and resulting permission error. It satisfies all required elements by identifying the allowlist gap, confirming data was written successfully, and proposing both immediate fix and systemic improvements including warnings for missing tables in the provisioning config. No distractors were incorrectly cited as root causes."
+    },
+    "s019": {
+      "category": "secondary_model_layer_failure",
+      "difficulty": "medium",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 1.0,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 1.0,
+      "rationale": "The diagnosis correctly identifies all steps in the causal chain, from the config rename trigger through the silent fallback mechanism to the zero-adjustment symptom. All required elements are present: the key rename, the DEBUG-level logging that hides the fallback, and the persistence across all runs for three weeks. No distractors are incorrectly cited as root causes."
+    },
+    "s020": {
+      "category": "secondary_model_layer_failure",
+      "difficulty": "hard",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 1.0,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 1.0,
+      "rationale": "The diagnosis correctly identifies all six causal chain steps: the storm event, the 6-week trailing window retrain mechanism without anomaly exclusion, the storm week persisting in the window through multiple retrains, the equal weighting causing persistent negative corrections, the lack of decay/cap mechanisms, and the adjustment not unwinding despite normal conditions. It satisfies all required elements by identifying the trailing window mechanism, the absence of anomaly exclusion and decay, and correctly noting the model is working as designed rather than malfunctioning. No distractors were incorrectly cited as root causes."
+    },
+    "s021": {
+      "category": "false_positive_correct_behavior",
+      "difficulty": "hard",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 1.0,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 1.0,
+      "rationale": "The diagnosis correctly identifies all six causal chain steps, explicitly states no bug exists, accurately attributes the missing combinations to all four eligibility rules with specific examples, proposes no fix to the exclusion logic itself, and avoids all four distractors."
+    }
+  }
+}

@@ -1,0 +1,15 @@
+ROOT CAUSE:
+On 2026-07-24, the config file was updated to rename `enabled_zones` to `zones_enabled` under the `weather_adjustment` section. However, the code in `adjustment_pipeline.py` was not updated in the same commit. The `_load_enabled_zones()` function still attempts to read `config["weather_adjustment"]["enabled_zones"]` (the old key name), which no longer exists in the YAML file. When this KeyError occurs, it is caught by the try/except block and the function returns an empty list with only a DEBUG-level log message. Since the log level is INFO, this fallback message is never captured. With an empty enabled zones list, every zone fails the `if sku_row["zone"] not in enabled_zones` check in `apply_weather_adjustment()`, causing the function to return 0.0 for all zones.
+
+CAUSAL CHAIN:
+1. On 2026-07-24, commit 3a7c1f0 renamed the config key from `weather_adjustment.enabled_zones` to `weather_adjustment.zones_enabled` but did not update the code that reads this config
+2. When `_load_enabled_zones()` executes, it attempts to access `config["weather_adjustment"]["enabled_zones"]` which no longer exists in the YAML
+3. The KeyError is caught by the try/except block added in commit c5b0a44, designed to make adjustment failures non-blocking
+4. The function logs a DEBUG message ("weather_adjustment.enabled_zones not found in config, disabling adjustment") and returns an empty list `[]`
+5. The DEBUG message is not visible in scoring_summary.log because the log level is set to INFO
+6. With `enabled_zones = []`, every call to `apply_weather_adjustment()` finds that `sku_row["zone"] not in enabled_zones` evaluates to True (since no zone is in an empty list)
+7. The function returns 0.0 for every zone without ever calling `_compute_adjustment_delta()`
+8. All adjustment_applied values are logged as 0.0, and the pipeline completes "successfully" with no errors
+
+PROPOSED FIX:
+Update `adjustment_pipeline.py` line 13 to read the correct config key name: change `return config["weather_adjustment"]["enabled_zones"]` to `return config["weather_adjustment"]["zones_enabled"]`. Additionally, consider changing the fallback log message from DEBUG to WARNING level so that config mismatches are visible in production logs and can alert operators to silent degradation.

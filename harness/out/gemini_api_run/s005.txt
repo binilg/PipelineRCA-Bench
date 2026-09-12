@@ -1,0 +1,14 @@
+ROOT CAUSE:
+The data ingestion pipeline allowed feature building to proceed with an incomplete vendor POS dataset when zone Z_SW failed to upload actuals due to a public holiday. In `build_features()`, a left join with actuals leaves missing zone data as null, which is then explicitly filled with `0.0` (`merged["actual_qty"].fillna(0.0)`). This improperly treated the unreceived vendor feed as zero historical sales rather than missing data, leading the scoring models to output severely depressed forecast volumes for zone Z_SW.
+
+CAUSAL CHAIN:
+1. Zone Z_SW vendor site was closed for a public holiday on 2026-08-05, resulting in no vendor POS feed being uploaded.
+2. The ingestion process proceeded without blocking on partial landing (5 of 6 feeds landed), leaving Z_SW actuals out of `/warehouse/actuals/run_date=2026-08-05`.
+3. `build_features()` left-joined the SKU catalog with the incomplete actuals table, resulting in null `actual_qty` values for all Z_SW SKUs.
+4. `merged["actual_qty"].fillna(0.0)` converted all null Z_SW actuals to zero sales.
+5. Forecast models scored Z_SW using 0.0 actuals as input features, causing Z_SW forecasts to artificially collapse.
+6. Total forecast volume dropped by 18% overall, triggering the `uplift_health_check` alert and regional ops investigation.
+
+PROPOSED FIX:
+1. Add an ingestion gate in the DAG or ingestion pipeline that validates all expected zone feeds have landed for the `run_date` before proceeding with feature engineering, raising a blocking dependency error if feeds are missing.
+2. Modify `build_features()` in `context/dag.py` so missing vendor feeds are not blindly converted to zero sales (`fillna(0.0)`). Instead, handle unlanded feeds by failing the job or using an appropriate fallback strategy (such as forward-filling prior day actuals or explicit null/imputation handling) to distinguish missing feed data from actual zero sales.

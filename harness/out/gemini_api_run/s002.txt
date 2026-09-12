@@ -1,0 +1,13 @@
+ROOT CAUSE:
+When the `publish_to_warehouse` task failed due to a network timeout, the operator cleared the task with the `--upstream` flag, causing the upstream `score_all_models` and `write_forecast_partition` tasks to re-execute for `run_date=2026-07-16`. Because `write_forecast_partition` uses `df.to_parquet(path, mode="append")` without deleting prior output or overwriting existing files, the second run appended duplicate Parquet files into `/warehouse/forecasts/run_date=2026-07-16`. This doubled the row count from 1,294,075 to 2,588,150 for that partition and caused `forecast_qty` to nearly double (+97.8% uplift) when published to the analytics warehouse.
+
+CAUSAL CHAIN:
+1. `publish_to_warehouse` timed out on its initial run for `run_date=2026-07-16` after `score_all_models` and `write_forecast_partition` had already succeeded and written 1,294,075 rows to `/warehouse/forecasts/run_date=2026-07-16`.
+2. On-call ops cleared `publish_to_warehouse` using `--upstream`, which reset and re-ran `score_all_models` and `write_forecast_partition`.
+3. `write_forecast_partition` ran a second time and called `df.to_parquet(path, mode="append")`, appending a duplicate set of 1,294,075 rows into the existing partition directory.
+4. `publish_to_warehouse` succeeded on the second attempt and published the duplicated dataset (2,588,150 total rows) to the warehouse.
+5. The nightly uplift health check summed `forecast_qty` over the duplicated partition data, recording 31,822,410 total forecast quantity (+97.8% over the prior day's 16,088,505) and triggering an alert.
+
+PROPOSED FIX:
+1. Update `write_forecast_partition` in `context/dag.py` to write partitions idempotently by passing `mode="overwrite"` to `to_parquet` (or deleting/clearing the target directory `/warehouse/forecasts/run_date={run_date}` before writing).
+2. Remediate the corrupted partition for `2026-07-16` by removing duplicate Parquet files or re-running the scoring and overwrite process for that `run_date`, then re-publishing the corrected dataset to the analytics warehouse.

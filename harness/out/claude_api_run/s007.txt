@@ -1,0 +1,12 @@
+ROOT CAUSE:
+The weekly rollup report for the week of 2026-07-28 was computed on 2026-08-01 (a Monday) by reading the forecast partitions as they existed at that time. On 2026-07-29, a backfill was executed that overwrote four of those partitions (2026-07-28 through 2026-07-31) with updated data containing different row counts and forecast values. The weekly_rollup_job.py explicitly does not track which partition versions it consumed and is never re-triggered when source partitions change after the fact. Therefore, the rollup report still reflects the old partition data from before the backfill, while the current partitions contain the newer backfilled data, causing the mismatch for exactly the four days that were backfilled.
+
+CAUSAL CHAIN:
+1. On 2026-08-01 (Monday), the weekly_rollup_job ran and read forecast partitions for 2026-07-28 through 2026-08-03, capturing the values that existed at that moment (e.g., 1284900 for 2026-07-28).
+2. On 2026-07-29 (which is actually before 2026-08-01 chronologically, but the backfill_run_log shows timestamps of "2026-07-29 10:02:11" suggesting this happened on July 29th), a backfill was executed with `--start-date 2026-07-28 --days 4`, reprocessing and overwriting partitions for 2026-07-28, 2026-07-29, 2026-07-30, and 2026-07-31.
+3. The backfill wrote new data to these four partitions with different row counts (e.g., 1296410 rows for 2026-07-28 instead of the previous 1284730), changing the forecast values.
+4. The weekly rollup report was never automatically refreshed after the backfill because weekly_rollup_job.py has no mechanism to detect or respond to upstream partition changes.
+5. When Finance compared the rollup report values to current partition values, the four backfilled days (2026-07-28 through 2026-07-31) showed mismatches, while the three non-backfilled days (2026-08-01 through 2026-08-03) matched perfectly.
+
+PROPOSED FIX:
+Implement partition lineage tracking in the weekly rollup job to record which partition versions were consumed, and add a mechanism to either (1) automatically re-trigger the rollup when any consumed partition is overwritten, or (2) add monitoring that alerts when source partitions change after a rollup has been computed. For immediate remediation, manually re-run the weekly_rollup_job for the week of 2026-07-28 to regenerate the report using the current backfilled partition data. Additionally, document the backfill process to include a step that identifies and re-triggers any downstream rollup reports that consumed the backfilled partitions.

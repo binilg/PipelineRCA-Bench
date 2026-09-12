@@ -1,0 +1,13 @@
+ROOT CAUSE:
+In `feature_loader.py`, the `trailing_avg` function catches `FileNotFoundError` when an actuals parquet partition is missing and silently imputes `0.0` for that day's demand. On 2026-08-02, a transient database connection pool exhaustion prevented the actuals partition for 2026-08-02 from being written, and on-call operations deferred the backfill to a weekly sweep. When `daily_forecast_scoring` ran for 2026-08-04, its 3-day trailing window included 2026-08-02; treating this missing partition as zero demand severely depressed the input feature `trailing_3d_avg`, leading the scoring models to output a collapsed forecast total (-42%).
+
+CAUSAL CHAIN:
+1. On 2026-08-02, a database connection pool exhaustion interrupted actuals processing, resulting in no partition being written to `/warehouse/actuals/zone={zone}/run_date=2026-08-02/total.parquet`.
+2. On-call operations deferred backfilling the missing 2026-08-02 actuals partition until the weekly Friday sweep.
+3. On 2026-08-04, `daily_forecast_scoring` executed `build_features`, invoking `trailing_avg` with a 3-day lookback window covering 2026-08-03, 2026-08-02, and 2026-08-01.
+4. `trailing_avg` encountered a `FileNotFoundError` when attempting to load the 2026-08-02 partition and silently assigned a demand value of `0.0`.
+5. The zero-imputation artificially lowered `trailing_3d_avg` across active models, causing the generated forecasts for 2026-08-04 to drop by 42% and trigger the health check alert.
+
+PROPOSED FIX:
+1. Backfill the missing actuals partition for `2026-08-02` in `/warehouse/actuals/` immediately so that current scoring runs receive accurate historical actuals.
+2. Update `trailing_avg` in `context/feature_loader.py` to stop treating missing partitions as `0.0` demand. Instead, either average only over available partitions within the trailing window (e.g., divide by non-missing count) or raise an exception to fail the DAG task explicitly when required upstream actuals partitions are absent.

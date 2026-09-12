@@ -1,0 +1,13 @@
+ROOT CAUSE:
+The coverage check uses a static threshold (MIN_EXPECTED_ROWS = 1_000_000) that was set on 2026-02-14 when the pipeline had 255 active models producing ~1.28M rows/day. On 2026-08-12, a worker crash caused only 80 of 260 models to complete, producing 1,050,220 rows. This incomplete partition still passed the coverage check because 1,050,220 exceeds the outdated 1M threshold, even though it represents only 31% of the expected output. The threshold was never updated as the model count grew from 255 to 260, and more critically, it was set too low to detect partial failures—it would have failed to catch incomplete runs even at the original 255-model scale.
+
+CAUSAL CHAIN:
+1. On 2026-08-12 at 02:58:11, scoring_worker_07 crashed due to a segfault in the native BLAS library after completing only 80 of 260 models
+2. The scoring_orchestrator had no auto-restart configured for this worker type, so the remaining 180 models were never processed
+3. After 15 minutes of no progress, the finalize-on-timeout mechanism triggered and wrote a partition containing only the 80 completed models (1,050,220 rows)
+4. The coverage check compared 1,050,220 rows against the static MIN_EXPECTED_ROWS threshold of 1,000,000
+5. Since 1,050,220 >= 1,000,000, the check returned PASS and the DAG completed successfully
+6. The inventory allocation team later discovered that 180 models' worth of SKUs were missing from the 2026-08-12 forecast
+
+PROPOSED FIX:
+Replace the static MIN_EXPECTED_ROWS threshold with a dynamic check that validates against the actual number of active models in the registry. The coverage check should verify that all 260 active models produced output, or at minimum set the threshold to a percentage of expected rows based on current model count (e.g., 95% of models_count * avg_rows_per_model). Additionally, add monitoring for worker crashes and enable auto-restart for scoring workers to prevent partial runs from being written in the first place. The finalize-on-timeout behavior should also be reconsidered—it may be better to fail the run explicitly rather than silently write incomplete data.

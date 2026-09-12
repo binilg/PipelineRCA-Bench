@@ -1,0 +1,13 @@
+ROOT CAUSE:
+`holiday_calendar_reference.csv` was created on 2026-04-20 as a static reference file and was never modified after creation. Because the platform storage lifecycle policy (`generic-cold-archive-90d`) automatically transitions any object in the `reference-data` bucket that has been unmodified for 90 days into cold storage, and no exclusion tags were configured on the object, the storage system moved the file out of standard storage. When the `daily_forecast_scoring` DAG ran on 2026-08-14 and attempted to read the file, the storage SDK could not locate it in standard storage and raised a `FileNotFoundError`.
+
+CAUSAL CHAIN:
+1. On 2026-04-20, `holiday_calendar_reference.csv` was created in the `reference-data` bucket without lifecycle exclusion tags.
+2. The file was regularly read but never modified, leaving its modification timestamp unchanged for over 90 days.
+3. The platform team's `generic-cold-archive-90d` lifecycle policy evaluated the object, satisfied the `object_unmodified_for_days >= 90` condition, and transitioned `holiday_calendar_reference.csv` to cold storage.
+4. On 2026-08-14, `daily_forecast_scoring` executed `load_holiday_calendar()` to read `/reference-data/holiday_calendar_reference.csv`.
+5. `storage_sdk/client.py` attempted standard tier access, failed to find the archived file in standard tier, and raised `FileNotFoundError`, causing the DAG task to fail.
+
+PROPOSED FIX:
+1. Restore `holiday_calendar_reference.csv` from cold storage back to standard tier storage.
+2. Coordinate with the platform storage team to tag `holiday_calendar_reference.csv` (and any other static reference datasets) with an exclusion tag, and update `storage_lifecycle_policy.yaml` to exclude tagged reference objects from automated cold archiving.

@@ -1,0 +1,12 @@
+ROOT CAUSE:
+On August 4, 2026, zone Z_SE migrated its point-of-sale reporting system, changing `avg_unit_price` in its daily pricing export from cents to dollars (e.g., reporting 15.0 instead of 1500.0). However, `context/feature_pipeline.py` passes raw `avg_unit_price` directly into `_PRICE_SCALER`, which was fit on cents-denominated data (`mean=1500.0`, `std=150.0`). Because there is no unit normalization in the feature pipeline, dollar values (~15.0) generate extreme negative z-scores (~ -9.9), causing the demand forecasting model to produce severely depressed forecast outputs for zone Z_SE.
+
+CAUSAL CHAIN:
+1. On 2026-08-04, Z_SE migrated its pricing export system to report `avg_unit_price` in dollars instead of cents.
+2. `daily_forecast_scoring` ingests the new dollar-based `avg_unit_price` values (e.g., 15.0) for Z_SE and passes them to `scale_avg_unit_price()`.
+3. `scale_avg_unit_price()` evaluates raw dollar inputs against `_PRICE_SCALER` expecting cents, calculating `(15.0 - 1500.0) / 150.0 = -9.9`.
+4. The demand forecasting model receives these severe negative z-scores during scoring and produces forecasts ~60% below baseline for Z_SE.
+5. `uplift_health_check` detects the forecast drop starting 2026-08-04 and triggers consecutive ALERT warnings for Z_SE.
+
+PROPOSED FIX:
+Update `scale_avg_unit_price()` in `context/feature_pipeline.py` to convert raw `avg_unit_price` values to cents (multiplying by 100.0) before applying `_PRICE_SCALER`, or re-fit `_PRICE_SCALER` on dollar units and retrain the model to expect dollars.

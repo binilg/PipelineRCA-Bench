@@ -1,0 +1,15 @@
+ROOT CAUSE:
+The SEASONAL_PROMO sku_group was added to the catalog on 2026-07-18, but the model was trained on 2026-06-01 using a training_config.yaml that only includes six known sku_group values (GROCERY, CHILLED, FROZEN, BAKERY, PRODUCE, HOUSEHOLD). When the scoring pipeline encounters the unseen "SEASONAL_PROMO" category, the encode_sku_group function in feature_pipeline.py silently falls back to index 0 (GROCERY) instead of raising an error. This causes all 40 SEASONAL_PROMO SKUs to be scored as if they were GROCERY items, producing wildly inaccurate forecasts (187.4% MAPE) while the pipeline reports success.
+
+CAUSAL CHAIN:
+1. On 2026-06-01, the model was trained and training_config.yaml was generated with known_values for sku_group containing only [GROCERY, CHILLED, FROZEN, BAKERY, PRODUCE, HOUSEHOLD]
+2. On 2026-07-18, merchandising added 40 new SKUs with sku_group=SEASONAL_PROMO to the catalog (commit c92a41f)
+3. On 2026-07-20, the daily_forecast_scoring DAG loaded the updated catalog containing SEASONAL_PROMO SKUs
+4. For each SEASONAL_PROMO SKU, build_features called encode_sku_group("SEASONAL_PROMO")
+5. Since "SEASONAL_PROMO" is not in _SKU_GROUP_INDEX, encode_sku_group returned 0 (the GROCERY index) as a silent fallback
+6. The model scored all SEASONAL_PROMO SKUs using GROCERY demand patterns instead of their actual category
+7. The pipeline completed successfully with 1,842 rows (correct count) but incorrect feature values for 40 SKUs
+8. Three days later, when actuals arrived, the forecasts for SEASONAL_PROMO showed 187.4% MAPE due to the category mismatch
+
+PROPOSED FIX:
+Modify encode_sku_group in feature_pipeline.py to raise an exception when encountering an unknown category instead of silently falling back to index 0. This will cause the pipeline to fail fast when new categories are added, alerting engineers that a model retrain is needed. The fix should be: `return _SKU_GROUP_INDEX[sku_group]` (removing the `.get(sku_group, 0)` fallback). Additionally, implement a pre-scoring validation step that checks whether all catalog sku_group values exist in the training_config known_values, and fails the DAG early if mismatches are detected. For immediate remediation, either retrain the model to include SEASONAL_PROMO or temporarily exclude those SKUs from scoring until the scheduled October retrain.

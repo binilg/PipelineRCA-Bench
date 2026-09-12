@@ -1,0 +1,14 @@
+ROOT CAUSE:
+On 2026-08-15, 340 new pantry SKUs were onboarded to the Z_S catalog (ticket MERCH-4471) without an infrastructure sizing review, doubling the SKU count scored for Z_S on 2026-08-16. Generating feature matrices for the enlarged catalog drove peak memory usage to 4.3Gi, exceeding the pod's default 4Gi memory limit and causing Kubernetes to OOM-kill (exit code 137) the Z_S scoring pod twice. Because the `score_zone_best_effort` wrapper catches task failures and logs them as skips rather than throwing errors, the overall DAG run succeeded with 259/260 zones, masking the failure and leaving zero forecast rows for zone Z_S.
+
+CAUSAL CHAIN:
+1. Merchandising onboarded 340 new pantry SKUs to zone Z_S effective 2026-08-16 without reviewing memory limits.
+2. During the 2026-08-16 forecast run, memory usage for zone Z_S reached 4.3Gi while generating feature matrices and scoring the expanded SKU set.
+3. The Z_S scoring pod exceeded its configured 4Gi memory limit and was terminated by Kubernetes with exit code 137 (OOMKilled).
+4. A retry attempt for zone Z_S ran under the same memory constraint and was also OOMKilled.
+5. The `score_zone_best_effort` function caught the pod termination exception, logged a warning that zone Z_S was skipped, and allowed execution to continue.
+6. The `score_all_models` function aggregated the results, reported 259/260 zones OK with status SUCCESS, and marked the DAG run green without emitting alerts for the omitted Z_S forecasts.
+
+PROPOSED FIX:
+1. Increase the memory resource request and limit for `scoring-zone-*` pods (or specifically for zone Z_S) from 4Gi to a higher threshold (e.g., 8Gi) to support the increased SKU volume.
+2. Update `dag.py` to differentiate fatal process terminations (like exit code 137 / OOMKilled) from standard recoverable model failures, emitting explicit alerts or failing the DAG run when a zone task is skipped due to infrastructure resource limits.

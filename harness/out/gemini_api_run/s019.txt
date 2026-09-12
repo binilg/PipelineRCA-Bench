@@ -1,0 +1,25 @@
+ROOT CAUSE:
+On 2026-07-24, commit 3a7c1f0 renamed the YAML configuration key `weather_adjustment.enabled_zones` to `weather_adjustment.zones_enabled`, but `adjustment_pipeline.py` was not updated to read the new key name. When `_load_enabled_zones()` attempts to read `config["weather_adjustment"]["enabled_zones"]`, a `KeyError` is raised and caught by a non-blocking `try...except` block. The exception handler logs a debug message (which is filtered out at the production log level of `INFO`) and defaults to returning an empty list `[]`. Because `enabled_zones` is empty, `apply_weather_adjustment()` treats all zones as disabled and returns `0.0` for every row, allowing the pipeline to complete successfully with zero weather adjustments.
+
+CAUSAL CHAIN:
+1. Commit 3a7c1f0 renamed `enabled_zones` to `zones_enabled` in `weather_adjustment_config.yaml` without updating `adjustment_pipeline.py`.
+2. When scoring runs, `_load_enabled_zones()` attempts to access `config["weather_adjustment"]["enabled_zones"]`.
+3. The missing dictionary key raises a `KeyError`.
+4. The `except KeyError` block catches the exception, emits a `log.debug` log message (suppressed by the logger's `INFO` threshold), and returns an empty list `[]`.
+5. `apply_weather_adjustment()` evaluates `sku_row["zone"] not in enabled_zones` as `True` for every zone and immediately returns `0.0`.
+6. `score_with_adjustment()` logs `adjustment_applied=0.0` and completes successfully, producing zero adjustments across all runs for three weeks.
+
+PROPOSED FIX:
+Update `_load_enabled_zones()` in `adjustment_pipeline.py` to reference `zones_enabled` instead of `enabled_zones`:
+
+```python
+def _load_enabled_zones() -> list:
+    config = yaml.safe_load(open("/config/weather_adjustment_config.yaml"))
+    try:
+        return config["weather_adjustment"]["zones_enabled"]
+    except KeyError:
+        log.warning("weather_adjustment.zones_enabled not found in config, disabling adjustment")
+        return []
+```
+
+Additionally, change the log level inside the `except KeyError` block from `log.debug` to `log.warning` so future configuration mismatches are visible in standard log output.

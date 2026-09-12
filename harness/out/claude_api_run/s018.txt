@@ -1,0 +1,14 @@
+ROOT CAUSE:
+The forecast data for 2026-08-13 was successfully written to the new table `forecast_output_v2`, but downstream consumers cannot read it because the access provisioning system still references only the old table name `forecast_output`. When the schema migration renamed the output table from `forecast_output` to `forecast_output_v2` on 2026-08-12, the static configuration file `access_provisioning_config.yaml` (last updated 2026-05-02) was not updated to include the new table name. The access provisioning job grants read permissions only to tables listed in its configuration, and silently ignores any tables not present in the allowlist, so `forecast_output_v2` never receives the necessary read grants for `inventory_planning_svc` and other downstream consumers.
+
+CAUSAL CHAIN:
+1. On 2026-08-12, commit d0a7c21 migrated the output table from `forecast_output` to `forecast_output_v2` to add confidence_interval columns
+2. The `access_provisioning_config.yaml` file was not updated as part of this migration (last update was 2026-05-02, before the migration)
+3. On 2026-08-13, the daily_forecast_scoring DAG ran successfully and wrote 1,861,220 rows to `forecast_output_v2`
+4. The write succeeded because the writing service account has implicit write access to tables it creates in its own project
+5. The nightly access provisioning job ran and granted read permissions only to tables in its static allowlist: `forecast_output` and `model_registry`
+6. The new table `forecast_output_v2` was silently skipped (no warning or error) because it's not in the `managed_tables` configuration
+7. When `inventory_planning_svc` attempted to read from `forecast_output_v2`, it received a PermissionDeniedError because it never received the SELECT privilege grant
+
+PROPOSED FIX:
+Update `access_provisioning_config.yaml` to replace `forecast_output` with `forecast_output_v2` in the managed_tables section, preserving all existing read_grants (inventory_planning_svc, replenishment_svc, bi_reporting_svc). Additionally, consider adding validation to the access provisioning job to detect when pipeline output tables exist but are not present in the configuration, emitting warnings or errors to prevent silent permission gaps in future migrations. As an immediate remediation step, manually grant read access on `forecast_output_v2` to all affected downstream service accounts.

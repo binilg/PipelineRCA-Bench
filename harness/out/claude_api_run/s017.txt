@@ -1,0 +1,15 @@
+ROOT CAUSE:
+The engineer developed and tested the code change to use `fastparquet_writer` in their local development environment, where the library happened to be installed from a previous prototype experiment in April 2026. However, `fastparquet_writer` was never added to `requirements_prod.txt`, so when the code was deployed to production, the production environment did not have this dependency installed. The code worked locally (masking the missing dependency declaration) but failed immediately upon deployment to production where the library was absent.
+
+CAUSAL CHAIN:
+1. On 2026-04-02, the engineer installed `fastparquet_writer==0.3.1` locally for a prototype that never shipped to production
+2. The library remained in the local development environment but was never added to `requirements_prod.txt`
+3. On 2026-08-12, the engineer modified `upload_task.py` to import and use `fastparquet_writer`
+4. The code change was tested locally and passed because `fastparquet_writer` was already installed in the local environment
+5. The code was committed and deployed to production without the dependency being declared
+6. On 2026-08-13 at 03:12:01, the production pipeline attempted to run the task
+7. The production environment tried to import `fastparquet_writer` but the module was not installed
+8. Python raised `ModuleNotFoundError: No module named 'fastparquet_writer'` causing immediate task failure
+
+PROPOSED FIX:
+Add `fastparquet_writer==0.3.1` to `requirements_prod.txt` and redeploy the production environment to install the missing dependency. Additionally, implement a process improvement: add a CI/CD check that compares all imports in the codebase against declared dependencies in `requirements_prod.txt` to catch undeclared dependencies before deployment.

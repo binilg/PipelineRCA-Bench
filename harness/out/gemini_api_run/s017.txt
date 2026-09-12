@@ -1,0 +1,12 @@
+ROOT CAUSE:
+Commit 6f1a9d3 updated `upload_task.py` to use `fastparquet_writer`, but `fastparquet_writer` was never added to `requirements_prod.txt`. The developer had previously installed `fastparquet_writer` on their local machine during a prototype in April 2026, so local testing succeeded despite the missing production dependency. When the change was deployed, the production Python environment lacked the `fastparquet_writer` package, causing `upload_to_warehouse` to fail on import with `ModuleNotFoundError`.
+
+CAUSAL CHAIN:
+1. On 2026-08-12, commit 6f1a9d3 changed `upload_task.py` to import and use `fastparquet_writer` instead of the original pyarrow-based implementation.
+2. The author's workstation environment already had `fastparquet_writer==0.3.1` installed from a prior prototype, allowing local execution to pass.
+3. The author did not add `fastparquet_writer` to `requirements_prod.txt` when committing the code changes.
+4. The commit was deployed to production, where `fastparquet_writer` was not installed in the Python environment.
+5. On the next scheduled run (2026-08-13 03:12:01), `upload_task.py` attempted to `import fastparquet_writer` and failed immediately with `ModuleNotFoundError: No module named 'fastparquet_writer'`.
+
+PROPOSED FIX:
+Add `fastparquet_writer` (e.g., `fastparquet_writer==0.3.1`) to `requirements_prod.txt` and redeploy the production environment so the package is installed. Alternatively, if `fastparquet_writer` is not approved for production use, revert commit 6f1a9d3 to restore the previous pyarrow-based implementation.

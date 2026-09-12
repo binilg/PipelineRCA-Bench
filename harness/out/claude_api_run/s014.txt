@@ -1,0 +1,14 @@
+ROOT CAUSE:
+Zone Z_S had no forecast rows for 2026-08-16 because its scoring task was OOM-killed twice due to insufficient memory allocation (4Gi limit vs 4.3Gi peak usage), triggered by a merchandising change that doubled the SKU count for Z_S on 2026-08-16. The DAG's "best-effort" design intentionally catches all exceptions including orchestrator-level pod terminations, logs them as warnings, and reports overall SUCCESS as long as any zones complete. This prevented the failure from surfacing in DAG status monitoring, while the infrastructure pod-events log that recorded the OOM kills exists in a separate system not routinely checked by the forecasting team.
+
+CAUSAL CHAIN:
+1. On 2026-08-15, merchandising onboarded 340 new pantry SKUs to zone Z_S's catalog (MERCH-4471), roughly doubling the SKU count effective 2026-08-16
+2. On 2026-08-16 at 02:47:12, the scoring task for Z_S attempted to build a feature matrix with full price/promo history for all SKUs, causing memory usage to spike to 4.3Gi, exceeding the 4Gi pod limit set in commit b13d7f0
+3. The orchestrator OOM-killed the pod (exit code 137) and retried once with the same 4Gi limit and same input data, resulting in a second OOM kill at 02:47:45
+4. The exception from pod termination was caught by the `score_zone_best_effort` wrapper, logged as a warning "zone=Z_S skipped due to task failure: pod terminated (exit 137)", and returned False
+5. The `score_all_models` function completed with 259/260 zones successful and logged "status=SUCCESS" because the best-effort design treats individual zone failures as acceptable
+6. The DAG marked all tasks green since no Python exceptions propagated and the overall status was SUCCESS
+7. No forecast rows were written for Z_S on 2026-08-16, but this was only discovered days later when inventory allocation queried for that zone/date
+
+PROPOSED FIX:
+Implement a multi-layered fix: (1) Add OOM-specific detection in `score_zone_best_effort` by checking for exit code 137 and automatically retry with increased memory (e.g., 8Gi or 12Gi); (2) Establish a data quality check that validates all active zones from the model registry have forecast output before marking the DAG as SUCCESS; (3) Create alerting when any zone is skipped, especially for OOM conditions, to surface infrastructure sizing issues immediately rather than relying on downstream consumers to discover missing data; (4) Require infrastructure sizing review as part of the merchandising onboarding process when SKU counts change significantly.

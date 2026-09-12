@@ -1,0 +1,15 @@
+ROOT CAUSE:
+Three newly registered models (M_0147, M_0148, M_0149) for the new zone Z_NW were added to the model registry on 2026-07-11 but no corresponding model artifacts were deployed to the production artifact directory. When the scoring DAG ran on 2026-07-14, it attempted to load pickled models from `/models/prod/Z_NW/M_0147/2026-07-14/model.pkl` (and similar paths for M_0148 and M_0149), but these files did not exist. The `_latest_artifact` fallback also found no artifacts at any date for zone Z_NW, forcing all three models to fall back to prior-day forecasts. This is a deployment gap: the model registry was updated to mark these models as active, but the upstream training/artifact-publishing pipeline did not produce or deploy the corresponding model.pkl files for the new zone.
+
+CAUSAL CHAIN:
+1. On 2026-07-11, zone Z_NW was added to the zone dimension table and three models (M_0147, M_0148, M_0149) were registered in model_registry.csv with `active=true` and `registered_date=2026-07-11`.
+2. The upstream model training/artifact deployment pipeline either did not run for zone Z_NW or failed to publish artifacts to `/models/prod/Z_NW/*/` directories.
+3. On 2026-07-14 at 02:44:12, the scoring DAG attempted to load artifacts for M_0147, M_0148, and M_0149 from their expected paths under `/models/prod/Z_NW/`.
+4. All three models encountered `FileNotFoundError` because no artifacts existed at the run_date-specific paths.
+5. The `_latest_artifact` retry logic searched for any historical artifact for zone Z_NW but found none ("No artifact found for zone Z_NW at any date").
+6. Each model invoked `_fallback_to_prior_day`, which successfully loaded forecasts from the 2026-07-13 partition and re-stamped them with run_date=2026-07-14.
+7. The DAG logged 3 fallbacks, which was within the tolerance threshold of 5, so the run completed with status=SUCCESS.
+8. The downstream fallback alert correctly fired because 3 models emitted fallback-sourced forecasts instead of freshly scored predictions.
+
+PROPOSED FIX:
+Implement a pre-flight validation step in the scoring DAG that checks for the existence of required model artifacts before marking models as active for scoring. Specifically: (1) Add a validation task that runs before `score_all` and verifies that all active models in the registry have corresponding artifacts available (either for the current run_date or at least one historical date); (2) If artifacts are missing for newly registered models, either fail the DAG with a clear error message or automatically mark those models as inactive until artifacts are deployed; (3) Establish a deployment checklist requiring that model artifacts be published and verified in production before setting `active=true` in the model registry. For the immediate incident, trigger a backfill of the model training pipeline for zone Z_NW to generate and deploy M_0147, M_0148, and M_0149 artifacts, then re-run scoring for 2026-07-14 to replace the fallback forecasts with actual predictions.

@@ -1,0 +1,14 @@
+ROOT CAUSE:
+The adjustment model retrains weekly on a trailing 6-week window of residuals without any mechanism to exclude anomalous events. The severe storm in week 2026-07-06 created a legitimate -14% residual for that week, but this single anomalous week is being averaged into every subsequent retrain. As of 2026-08-10, the storm week is still within the 6-week trailing window (spanning 2026-06-29 to 2026-08-10), causing the model to persistently learn a negative correction of -11% to -13% even though the underlying weather has been normal for five weeks. The model treats the one-off storm event as if it represents a systematic forecasting bias rather than a transient anomaly.
+
+CAUSAL CHAIN:
+1. Severe storm hits zone Z_SE during week of 2026-07-06, causing genuinely suppressed sales and a -14% residual (core_forecast minus actual).
+2. Weekly retrain on 2026-07-20 includes the storm week in its 6-week trailing window (2026-06-08 to 2026-07-20), learning a -14.0% correction by averaging the storm week with five normal weeks.
+3. Subsequent weeks (2026-07-27, 2026-08-03, 2026-08-10) have normal weather and sales, but each retrain still includes the storm week in the trailing 6-week window.
+4. The -14% storm residual continues to drag down the average correction, yielding -13.1%, -12.4%, and -11.8% respectively, even as more normal weeks enter the window.
+5. The adjustment layer applies these negative corrections to current forecasts, systematically under-forecasting demand in Z_SE.
+6. Replenishment receives artificially low forecasts and orders insufficient inventory, leading to recurring stockouts.
+7. The storm week will remain in the trailing window until 2026-08-17 (when the window starts at 2026-07-06, the storm week itself), and fully exit only on 2026-08-24 (when the window starts at 2026-07-13).
+
+PROPOSED FIX:
+Implement anomaly exclusion logic in the adjustment model. Add a mechanism to flag and exclude known one-off events (severe weather, holidays, store closures, etc.) from the trailing residual window used for retraining. This can be achieved by: (1) creating an event registry that marks specific weeks as anomalous with a reason code, (2) modifying `load_trailing_residuals()` to filter out weeks flagged in the registry, and (3) setting `anomaly_exclusion: true` in the config. Additionally, consider adding a magnitude cap (e.g., `max_negative_adjustment_pct: -0.05`) to prevent any single extreme week from dominating the learned correction, and implement event-tied decay logic so adjustments automatically expire when the causal event window ends.

@@ -1,0 +1,14 @@
+ROOT CAUSE:
+The `notify_partner_webhook` function is called unconditionally at the start of every task attempt, before the file upload occurs. When the first upload attempt failed due to a network timeout, the webhook had already been sent. On the retry, the webhook was sent again before the successful upload. Because the webhook has no idempotency key (as confirmed in the config: `idempotency_key: null`), the partner system treated both webhook calls as distinct events and ingested the file twice, even though only one successful upload occurred.
+
+CAUSAL CHAIN:
+1. At 05:10:02 on 2026-07-25, the first task attempt begins and immediately calls `notify_partner_webhook`, sending the first webhook notification to the partner
+2. At 05:10:03, the task proceeds to `_transfer_file` which attempts the SFTP upload
+3. At 05:11:03, the SFTP connection times out after 60 seconds, causing the task to fail
+4. At 05:15, the task is requeued for retry (attempt 2)
+5. At 05:16:10, the retry attempt begins and again immediately calls `notify_partner_webhook`, sending a second webhook notification for the same run_date
+6. At 05:16:11, the file upload begins and completes successfully at 05:16:52
+7. The partner's ingestion system receives two webhook notifications (6 minutes apart) for run_date 2026-07-25 and, lacking deduplication logic, processes the file twice
+
+PROPOSED FIX:
+Move the `notify_partner_webhook` call to execute only after `_transfer_file` completes successfully, not before. Additionally, implement an idempotency key in the webhook payload (e.g., based on run_date and feed name) so that even if duplicate notifications are sent due to retries or other failures, the partner system can deduplicate them. The git log shows this pattern was already implemented for `retailer_beta` integration in commit c1a90f3, so apply the same pattern to the `acme_retail_partner` integration.

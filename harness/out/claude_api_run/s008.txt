@@ -1,0 +1,13 @@
+ROOT CAUSE:
+The Z_SE zone's forecast model is receiving severely mis-scaled feature inputs due to a unit mismatch introduced on 2026-08-04. The feature pipeline's `scale_avg_unit_price` function was trained on data where prices were in cents (mean=1500, std=150), but Z_SE's pricing system migration changed its `avg_unit_price` export from cents to dollars on 2026-08-04. When a price that is now ~15 dollars (previously 1500 cents) is fed into the scaler expecting cents, it produces ((15 - 1500) / 150) = -9.9 instead of the expected ((1500 - 1500) / 150) = 0.0, causing the model to receive drastically out-of-distribution feature values and produce unreliable forecasts.
+
+CAUSAL CHAIN:
+1. On 2026-08-04, Z_SE's pricing system migration changed `avg_unit_price` from cents to dollars (e.g., 1500 cents became 15.0 dollars) while all other zones continued reporting in cents
+2. The feature pipeline's `_PRICE_SCALER` was fit on training data in cents (mean=1500.0, std=150.0) and has no unit validation or conversion logic
+3. Z_SE's dollar-denominated prices (≈15.0) are passed to `scale_avg_unit_price`, which applies (value - 1500) / 150, producing highly negative z-scores around -9.9 instead of near-zero values
+4. The demand forecast model for Z_SE receives feature values far outside its training distribution, causing it to extrapolate poorly
+5. Z_SE forecasts drop 58-63% below normal starting exactly on 2026-08-04, while other zones (still reporting in cents) remain healthy
+6. The DAG runs green because the schema validation only checks that `avg_unit_price` is a float, not its unit or magnitude
+
+PROPOSED FIX:
+Add unit normalization in the feature pipeline to convert all prices to cents before scaling. Insert a conversion step in `scale_avg_unit_price` or in the data ingestion layer that detects or explicitly handles per-zone unit conventions. Immediate mitigation: multiply Z_SE's `avg_unit_price` by 100 before passing to the scaler. Long-term: add schema validation that checks price magnitudes are within expected ranges (e.g., 500-3000 for cents) to catch unit mismatches, and document the expected unit (cents) explicitly in the feature pipeline code and data contracts.

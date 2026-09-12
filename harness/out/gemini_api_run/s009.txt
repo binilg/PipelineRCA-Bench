@@ -1,0 +1,25 @@
+ROOT CAUSE:
+When `demand_forecast_v5` was promoted to production on 2026-08-06, `serving_feature_manifest.yaml` was not updated to include `promo_flag` in `active_model_features`. As a result, the scoring pipeline loaded feature vectors omitting `promo_flag`. The inference wrapper filled missing feature values with 0, causing all SKUs on active promotions to be evaluated with `promo_flag = 0` and producing systematically underforecasted demand estimates for promoted SKUs.
+
+CAUSAL CHAIN:
+1. Model `demand_forecast_v5` was promoted to production on 2026-08-06, introducing `promo_flag` as a required feature.
+2. `serving_feature_manifest.yaml` was not updated during promotion, leaving `promo_flag` missing from `active_model_features`.
+3. `score_all_models` executed `load_serving_features()`, fetching expected features that excluded `promo_flag`.
+4. `build_feature_vector()` generated dictionaries containing only `sku_group_idx`, `zone_idx`, `avg_unit_price_z`, and `trailing_3d_avg`.
+5. `score_sku()` received vectors missing `promo_flag` and defaulted unsupplied feature values to 0 before scoring.
+6. `model.predict()` evaluated active promo SKUs as if `promo_flag == 0`, ignoring promotional demand spikes and causing systematic underforecasting.
+
+PROPOSED FIX:
+Update `/config/serving_feature_manifest.yaml` to include `promo_flag` in `active_model_features`:
+
+```yaml
+active_model: demand_forecast_v5
+active_model_features:
+  - sku_group_idx
+  - zone_idx
+  - avg_unit_price_z
+  - trailing_3d_avg
+  - promo_flag
+```
+
+Additionally, update the model promotion process or deployment checks to automatically validate that `serving_feature_manifest.yaml` matches the required feature schema defined in `training_feature_manifest.yaml` for the active model.

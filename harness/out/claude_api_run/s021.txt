@@ -1,0 +1,14 @@
+ROOT CAUSE:
+The 47 missing sku-store combinations are intentionally excluded from scoring by the pipeline's eligibility filters, not due to a bug. Each combination fails at least one of four documented business rules: SKU_40011 through SKU_40014 have insufficient sales history (3 and 2 days vs. the required 14-day minimum), SKU_50201 through SKU_50203 have effective dates in the future relative to the run_date (September 2026 vs. August 13, 2026), SKU_10233 and SKU_10388 are not ranged at the specific stores listed in the missing combinations report (though they are active SKUs carried at other stores), and SKU_20601 and SKU_20602 are marked as discontinued in the catalog. The pipeline correctly filtered all 47 combinations before scoring began, which is why the DAG ran green with nominal row counts and no exceptions.
+
+CAUSAL CHAIN:
+1. On run_date=2026-08-13, the scoring pipeline loads the SKU catalog and applies four eligibility filters before attempting to score any sku-store combinations
+2. SKU_40011, SKU_40012 (3 days history), SKU_40013, SKU_40014 (2 days history) fail the MIN_SALES_HISTORY_DAYS >= 14 filter
+3. SKU_50201, SKU_50202 (effective_date=2026-09-01), SKU_50203 (effective_date=2026-09-15) fail the is_active() filter because their effective dates are after the run_date
+4. SKU_10233 at stores ST_0300, ST_0301, ST_0302 and SKU_10388 at stores ST_0155, ST_0156, ST_0157, ST_0158 fail the is_ranged_at_store() filter because these sku-store pairs are not in the assortment table
+5. SKU_20601 and SKU_20602 fail the is_not_discontinued() filter due to status="discontinued"
+6. All 47 combinations are excluded before scoring, so no forecast rows are written for them
+7. The downstream inventory-planning team queries for these combinations and finds them missing, interpreting this as a potential scoring bug rather than intentional exclusion
+
+PROPOSED FIX:
+No code fix needed. The pipeline is working as designed—all 47 missing combinations correctly fail documented eligibility rules and should not receive forecasts. However, to prevent future false-alarm tickets, consider adding an eligibility exclusion report as a DAG output that logs the count and reason code (insufficient_history, not_yet_active, not_ranged, discontinued) for each excluded sku-store combination. This would allow downstream teams to self-diagnose by checking the exclusion report before filing tickets, and would provide an audit trail showing that exclusions are intentional business logic rather than data quality issues.

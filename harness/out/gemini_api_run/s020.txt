@@ -1,0 +1,14 @@
+ROOT CAUSE:
+The persistent negative forecast correction in zone Z_SE is caused by the weather-adjustment model (`adjustment_model.py`) calculating corrections as an unweighted mean of historical residuals over a trailing 6-week window (`TRAILING_WINDOW_WEEKS = 6`), without anomaly exclusion, magnitude capping, or event-end decay logic (`retrain_config.yaml`). Because external weather logs (`weather_event_log.txt`) are not consumed by the model and `anomaly_exclusion` is set to false, the severe, temporary sales drop from the storm week of 2026-07-06 remains inside the 6-week calculation window through 2026-08-17. Consequently, the single historic storm week continuously skews the rolling average negative, depressing daily core forecasts during weeks of normal weather.
+
+CAUSAL CHAIN:
+1. A severe storm hit zone Z_SE during the week of 2026-07-06, creating a large temporary negative sales residual for that week.
+2. `adjustment_model.py` retrains weekly by calculating `residuals["pct_residual"].mean()` over a strict 6-week trailing window, weighting all weeks equally regardless of external weather events.
+3. On retrain runs from 2026-07-13 through 2026-08-10, the trailing 6-week window continues to include the 2026-07-06 storm week residual (and will continue to do so until the 2026-08-24 retrain).
+4. The large negative residual from the storm week heavily drags down the 6-week average, forcing `retrain_zone_correction()` to apply an ongoing -11.8% to -14.0% daily correction to core forecasts in Z_SE despite normal weather since 2026-07-10.
+5. The artificially depressed core forecasts cause replenishment services to under-predict demand, resulting in recurring inventory stockouts across Z_SE.
+
+PROPOSED FIX:
+1. Integrate the external weather event log (`weather_event_log.txt`) into `adjustment_model.py` and set `anomaly_exclusion: true` in `retrain_config.yaml` to exclude known severe event weeks from the trailing residual calculation once the event ends.
+2. Update `retrain_config.yaml` and `retrain_zone_correction()` to support event-end decay (`decay_on_event_end: true`) and impose maximum bounds on negative adjustments (`max_negative_adjustment_pct`).
+3. Alternatively, modify `load_trailing_residuals()` / `retrain_zone_correction()` to use a weighted moving average or robust statistic (e.g., median or trimmed mean) rather than an unweighted mean to prevent single-week anomalies from dominating the multi-week forecast correction.

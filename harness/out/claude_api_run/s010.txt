@@ -1,0 +1,15 @@
+ROOT CAUSE:
+The stability check compared the 2026-08-10 data against itself rather than against the previous day's data due to a bug introduced in commit d82f4a1 on 2026-07-20. The `_reference_date()` function incorrectly uses `timedelta(days=0)` instead of `timedelta(days=-1)`, causing it to return the same date as the run_date. When comparing a dataset's distribution against itself, the PSI calculation always yields 0.00 (perfect match), which explains why the check reported "Green (PSI=0.00)" despite the significant data corruption on 2026-08-10.
+
+CAUSAL CHAIN:
+1. On 2026-07-20, commit d82f4a1 "refactored" the date handling in `_reference_date()` but introduced a bug: changed the timedelta offset from -1 to 0
+2. Starting 2026-07-21, all stability checks began comparing each day's data against itself instead of against the previous day
+3. The logs show PSI=0.00 for every single run from 2026-07-21 onward, which is statistically impossible for real-world data distributions unless comparing identical datasets
+4. On 2026-08-10, the upstream ETL bug corrupted ~40% of avg_unit_price values by roughly 3x
+5. The stability check loaded the 2026-08-10 partition as both "today" and "reference" data
+6. Computing PSI between identical distributions (same partition loaded twice) yielded PSI=0.00
+7. PSI=0.00 < threshold of 0.2, so the check passed as "Green" and did not block the pipeline
+8. The corrupted data proceeded through the scoring pipeline undetected
+
+PROPOSED FIX:
+Change line 11 in `stability_check.py` from `dt.timedelta(days=0)` to `dt.timedelta(days=-1)` to correctly compute yesterday's date as the reference. Additionally, add an integration test that exercises the full `run_stability_check()` function with actual date arithmetic and file loading to ensure the reference date is correctly resolved to the previous day's partition, preventing this class of bug from being reintroduced.

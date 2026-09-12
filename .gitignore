@@ -1,4 +1,13 @@
-out/
+/out/
+harness/out/*
+!harness/out/phase3_report.md
+!harness/out/phase3_results.json
+!harness/out/claude_graded_by_gemini.json
+!harness/out/gemini_graded_by_claude.json
+!harness/out/claude_api_run/
+!harness/out/claude_api_run/**
+!harness/out/gemini_api_run/
+!harness/out/gemini_api_run/**
 __pycache__/
 *.pyc
 .env

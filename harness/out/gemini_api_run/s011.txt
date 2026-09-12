@@ -1,0 +1,14 @@
+ROOT CAUSE:
+The coverage gate relies on a hardcoded, static threshold (`MIN_EXPECTED_ROWS = 1_000_000`) rather than validating model completion counts or dynamic baseline row counts. On 2026-08-12, a worker crashed due to a native BLAS segfault after processing only 80 of 260 models. The orchestrator timed out after 15 minutes of inactivity and finalized the forecast partition using only the 80 completed models. Because those 80 models produced 1,050,220 rows, the output exceeded the outdated 1,000,000 row threshold, causing the coverage check to pass and mask an incomplete partition missing 180 models.
+
+CAUSAL CHAIN:
+1. `scoring_worker_07` crashed due to a native BLAS segfault after completing 80 out of 260 active models.
+2. With no worker auto-restart configured, scoring stalled, triggering the orchestrator's 15-minute finalize-on-timeout mechanism.
+3. The orchestrator wrote a partial output partition containing predictions for only the 80 completed models (1,050,220 rows).
+4. `run_coverage_check` evaluated the partition against `MIN_EXPECTED_ROWS = 1_000_000` (a static value set in February 2026 when expected full output was ~1.28M rows).
+5. Because 1,050,220 rows exceeded 1,000,000 rows, `run_coverage_check` logged `PASS` and allowed the job to complete green, hiding the fact that 180 models were missing.
+
+PROPOSED FIX:
+Update the validation and orchestration logic to enforce model-level completeness:
+1. Modify the coverage gate to check that all active registered models (e.g. 260/260 models, or 100% model completion) are present in the partition, rather than relying solely on a static total row count threshold.
+2. Change the orchestrator timeout handling so that finalizing on timeout raises an error or marks the run as failed if model completion is under 100%.

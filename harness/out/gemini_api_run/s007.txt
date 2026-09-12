@@ -1,0 +1,13 @@
+ROOT CAUSE:
+A manual backfill (`backfill_cli.py`) reprocessed and overwrote the daily forecast partitions for run dates 2026-07-28 through 2026-07-31 with updated data. Because `weekly_rollup_job.py` generates a static CSV report (`/reports/weekly_rollup_2026-07-28.csv`) on Mondays and lacks an automated trigger or partition-versioning mechanism to refresh reports when underlying daily partitions are modified after generation, the stored rollup report retained the pre-backfill values and drifted out of sync with the updated warehouse partitions.
+
+CAUSAL CHAIN:
+1. `backfill_cli.py` was executed with `--start-date 2026-07-28 --days 4`, reprocessing daily scoring for dates 2026-07-28 through 2026-07-31.
+2. The backfill overwrote the parquet partitions in `/warehouse/forecasts/run_date=...` for those four dates, updating their row counts and forecast values.
+3. The weekly rollup report generated on 2026-08-01 was computed using the original pre-backfill partition values (or before the backfill overwrote the data).
+4. `weekly_rollup_job.py` did not detect or listen for updates to historical forecast partitions, leaving `/reports/weekly_rollup_2026-07-28.csv` unchanged.
+5. Finance compared the static rollup report CSV against current partition values, discovering mismatches across the four backfilled dates (2026-07-28 to 2026-07-31).
+
+PROPOSED FIX:
+1. Immediately re-run `run_weekly_rollup("2026-07-28", "2026-08-03")` to regenerate `/reports/weekly_rollup_2026-07-28.csv` with the backfilled forecast partition data.
+2. Update the pipeline DAG or `backfill_cli.py` to automatically identify and re-trigger affected `weekly_rollup_job` runs whenever historical forecast partitions are reprocessed.

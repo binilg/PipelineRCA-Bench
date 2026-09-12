@@ -1,0 +1,13 @@
+ROOT CAUSE:
+The write_forecast_partition function uses `df.to_parquet(path, mode="append")` without deleting existing data before writing. When the on-call engineer cleared the DAG with `--upstream` flag on 2026-07-16 at 03:22, it re-ran both score_all_models and write_forecast_partition. The write task appended a second copy of the same 1,294,075 rows to the partition that had already been written during the first attempt at 03:07:40, resulting in 2,588,150 total rows (exactly double) for run_date 2026-07-16. The publish_to_warehouse task had failed due to a network timeout, but the upstream write had already succeeded and persisted data to disk. The retry logic did not account for the fact that the write operation is not idempotent.
+
+CAUSAL CHAIN:
+1. First DAG run on 2026-07-16 successfully scored 258 models and wrote 1,294,075 rows to `/warehouse/forecasts/run_date=2026-07-16` at 03:07:40
+2. The publish_to_warehouse task failed at 03:14:33 due to network timeout to warehouse-api
+3. On-call engineer cleared the DAG with `--upstream` flag at 03:22, which re-ran score_all_models and write_forecast_partition in addition to publish_to_warehouse
+4. The second write_forecast_partition execution appended another 1,294,075 rows to the same partition at 03:49:02 (mode="append" with no pre-delete)
+5. The partition now contained 2,588,150 rows (double the expected amount), confirmed in row_counts.csv
+6. The uplift health check summed forecast_qty across all rows in the partition, counting each forecast twice, resulting in +97.8% uplift
+
+PROPOSED FIX:
+Change the write_forecast_partition function to delete the partition directory before writing, or use mode="overwrite" instead of mode="append". The write operation must be idempotent to support safe retries. Add: `shutil.rmtree(path, ignore_errors=True)` before the `to_parquet()` call, or change the mode parameter to `"overwrite"`. Additionally, consider changing the retry strategy to only clear the failed publish_to_warehouse task rather than using `--upstream`, since scoring and writing are expensive operations that should not be re-run unnecessarily when they've already succeeded.

@@ -1,0 +1,15 @@
+ROOT CAUSE:
+There is no bug in the scoring pipeline; the absence of forecasts for these 47 SKU-store combinations is expected behavior enforced by `scoring_eligibility_rules.py`. During catalog pre-filtering, every missing combination failed at least one business eligibility rule: SKUs with insufficient sales history (`sales_history_days` < 14, such as SKU_40011-40014), SKUs with future catalog effective dates after 2026-08-13 (such as SKU_50201-50203), store-SKU pairs that are not carried/ranged in the store assortment catalog (such as SKU_10233 and SKU_10388 at the reported stores), or SKUs with a `discontinued` status (such as SKU_20601-20602). Because ineligible combinations are intentionally excluded prior to scoring, no forecast rows were generated for them.
+
+CAUSAL CHAIN:
+1. Downstream inventory planning noticed 47 missing SKU-store entries in the forecast tables for `run_date=2026-08-13` and reported potential scoring failure.
+2. The `daily_forecast_scoring` pipeline evaluated all SKU-store combinations against eligibility criteria in `scoring_eligibility_rules.py` prior to running scoring models.
+3. The reported combinations failed specific eligibility criteria:
+   - **Insufficient Sales History (< 14 days):** SKU_40011, SKU_40012, SKU_40013, SKU_40014 have only 2–3 days of history (`is_forecastable` failed).
+   - **Future Effective Date:** SKU_50201, SKU_50202, SKU_50203 have effective dates in September 2026 (`is_active` failed).
+   - **Not Ranged at Store:** SKU_10233 (at ST_0300–ST_0302) and SKU_10388 (at ST_0155–ST_0158) are not carried in `store_assortment.csv` (`is_ranged_at_store` failed).
+   - **Discontinued Status:** SKU_20601 and SKU_20602 are marked as discontinued (`is_not_discontinued` failed).
+4. `eligible_for_scoring()` filtered out all 47 ineligible combinations before model scoring, and the DAG completed successfully (`status=SUCCESS`).
+
+PROPOSED FIX:
+No code fix needed. The scoring pipeline is functioning as designed. Downstream planning teams can self-diagnose future missing combinations by checking the catalog and assortment inputs against the four criteria in `scoring_eligibility_rules.py`: minimum 14 days of sales history, effective date on or before run date, active store ranging, and non-discontinued status. If desired in a future sprint, an optional audit logging/reporting dataset could be added to publish per-combination exclusion reasons for downstream visibility.

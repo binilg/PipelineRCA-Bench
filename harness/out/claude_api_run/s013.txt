@@ -1,0 +1,19 @@
+ROOT CAUSE:
+The holiday_calendar_reference.csv file was automatically moved to cold storage by a platform-wide lifecycle policy that archives any object in the reference-data bucket unmodified for 90 days or more. The file was created on 2026-04-20 and never modified thereafter; by 2026-08-14 (116 days later) it exceeded the 90-day threshold and was archived to cold storage. The storage SDK's standard read method cannot access cold-tier objects, causing the FileNotFoundError. This is a policy misconfiguration issue: static reference files that are intentionally read-only should be excluded from automatic archival, but no such exclusion was configured and the forecasting team was not on the notification list to be alerted when their files were archived.
+
+CAUSAL CHAIN:
+1. holiday_calendar_reference.csv was committed to the reference-data bucket on 2026-04-20 as a static, read-only reference file
+2. The file was never modified after creation, as intended for a stable holiday calendar
+3. The platform storage team's generic-cold-archive-90d policy continuously monitored all objects in the reference-data bucket for modification age
+4. On approximately 2026-07-19 (90 days after 2026-04-20), the file met the condition object_unmodified_for_days >= 90
+5. The lifecycle policy moved the file from standard tier to cold storage
+6. The forecasting team was not notified because they were not subscribed to platform-storage-alerts@retailco.example.com
+7. On 2026-08-14, the daily_forecast_scoring DAG attempted to read the file using pd.read_csv, which calls the storage SDK's standard-tier open method
+8. The storage SDK raised FileNotFoundError because the object exists only in cold storage, not in the standard tier accessible to normal read operations
+
+PROPOSED FIX:
+1. Immediate remediation: Restore holiday_calendar_reference.csv from cold storage to standard tier so the pipeline can run
+2. Prevent recurrence by adding an exclusion tag or metadata attribute to holiday_calendar_reference.csv (and similar static reference files) that exempts them from the 90-day archival policy
+3. Update storage_lifecycle_policy.yaml to explicitly exclude objects tagged as "permanent-reference" or similar from automatic cold-storage archival
+4. Subscribe the forecasting team (or a shared data-engineering distribution list) to platform-storage-alerts@retailco.example.com so they receive notifications when their files are archived in the future
+5. Document in the reference-data bucket README that static files intended for indefinite active use must be tagged appropriately to avoid archival

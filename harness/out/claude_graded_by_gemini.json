@@ -1,0 +1,598 @@
+{
+  "judge": "gemini",
+  "judge_model": "gemini-3.5-flash",
+  "diagnoses_dir": "out\\claude_api_run",
+  "scenarios_dir": "..\\scenarios",
+  "methodology": "Diagnoses in out\\claude_api_run graded via gemini (gemini-3.5-flash) using JUDGE_PROMPT_TEMPLATE from harness/scoring/rca_judge.py, ported byte-for-byte into this standalone script, and scored with the identical _score_from_hits formula: overall = (0.6*causal_chain_coverage + 0.4*required_elements_coverage) * distractor_penalty. This is a cross-model grading pass -- the judge model is deliberately different from the model whose diagnoses are being graded, so no model grades its own answers.",
+  "mean": 0.9521,
+  "scenarios": {
+    "s001": {
+      "category": "recovery_temporal_state",
+      "difficulty": "hard",
+      "causal_chain_hits": [
+        true,
+        false,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        false
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 0.8,
+      "required_elements_coverage": 0.6667,
+      "distractor_penalty": 1.0,
+      "overall": 0.7467,
+      "rationale": "The agent correctly identified the affected models (M_0147, M_0148, M_0149) in zone Z_NW and the missing artifact/fallback mechanism. However, it failed to trace the root cause to the training DAG's static config zone list not being updated, instead guessing that the training pipeline either did not run or failed to publish."
+    },
+    "s002": {
+      "category": "rerun_idempotency_failure",
+      "difficulty": "medium",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 1.0,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 1.0,
+      "rationale": "The agent's diagnosis is exceptionally accurate, correctly identifying all steps of the causal chain, satisfying all required elements, and avoiding all distractors."
+    },
+    "s003": {
+      "category": "train_serving_skew",
+      "difficulty": "medium",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 1.0,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 1.0,
+      "rationale": "The agent's diagnosis is exceptionally accurate, identifying all steps of the causal chain, meeting all required elements, and avoiding all distractors."
+    },
+    "s004": {
+      "category": "recovery_temporal_state",
+      "difficulty": "medium",
+      "causal_chain_hits": [
+        true,
+        true,
+        false,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 0.8571,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 0.9143,
+      "rationale": "The agent's diagnosis is exceptionally accurate, identifying all required elements and almost the entire causal chain, only omitting the minor detail about the unnoticed -8% dip on 2026-08-03. None of the distractors were incorrectly blamed as the root cause."
+    },
+    "s005": {
+      "category": "recovery_temporal_state",
+      "difficulty": "easy",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 1.0,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 1.0,
+      "rationale": "The agent's diagnosis is exceptionally accurate, correctly identifying all steps of the causal chain, meeting all required elements, and avoiding all distractors."
+    },
+    "s006": {
+      "category": "rerun_idempotency_failure",
+      "difficulty": "medium",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 1.0,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 1.0,
+      "rationale": "The agent's diagnosis is highly accurate, correctly identifying the unconditional webhook call and lack of idempotency key as the root cause. It perfectly maps out the causal chain, satisfies all required elements, and avoids falling for any of the distractors."
+    },
+    "s007": {
+      "category": "rerun_idempotency_failure",
+      "difficulty": "medium",
+      "causal_chain_hits": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 0.5,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 0.7,
+      "rationale": "The agent correctly identified that the backfill overwrote partitions 07-28 through 07-31 and that the rollup was not re-triggered, satisfying all required elements. However, it missed the engineer's intent/misunderstanding of the `--days` flag (causal steps 1 and 2) and incorrectly claimed that 4 days mismatched instead of 3 (causal step 6) due to a chronological confusion in its timeline."
+    },
+    "s008": {
+      "category": "train_serving_skew",
+      "difficulty": "hard",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 1.0,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 1.0,
+      "rationale": "The agent's diagnosis is exceptionally accurate, correctly identifying the unit change from cents to dollars for Z_SE, the stale scaler mechanism, and the lack of validation. It avoids all distractors."
+    },
+    "s009": {
+      "category": "train_serving_skew",
+      "difficulty": "medium",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 1.0,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 1.0,
+      "rationale": "The agent's diagnosis is exceptionally accurate and complete. It correctly identifies the missing promo_flag in the serving feature manifest, the 0-fill behavior of the scoring function, and correctly attributes the issue to the manifest sync rather than the model itself, without falling for any distractors."
+    },
+    "s010": {
+      "category": "data_quality_gate_failure",
+      "difficulty": "easy",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 1.0,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 1.0,
+      "rationale": "The agent's diagnosis is exceptionally accurate, correctly identifying all steps of the causal chain, satisfying all required elements, and avoiding all distractors by correctly distinguishing the root cause of the gate failure from the upstream ETL bug."
+    },
+    "s011": {
+      "category": "data_quality_gate_failure",
+      "difficulty": "easy",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 1.0,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 1.0,
+      "rationale": "The agent's diagnosis is exceptionally accurate, correctly identifying all steps of the causal chain and satisfying all required elements. It successfully avoids falling for any of the distractors, clearly distinguishing between the cause of the incomplete data (worker crash) and the reason the check failed to catch it (stale threshold)."
+    },
+    "s012": {
+      "category": "data_quality_gate_failure",
+      "difficulty": "hard",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 1.0,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 1.0,
+      "rationale": "The agent's diagnosis is exceptionally accurate, correctly identifying the 5,000-unit validation cap, the dev dataset limitation containing only EACH-unit SKUs, and the specific impact on CASE-unit SKUs in zone Z_SW."
+    },
+    "s013": {
+      "category": "resource_capacity_lifecycle_failure",
+      "difficulty": "easy",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 1.0,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 1.0,
+      "rationale": "The agent's diagnosis is exceptionally accurate. It correctly identifies the 90-day lifecycle policy, the unmodified status of the file, and the lack of pipeline-side regression as the root cause, while avoiding all distractors."
+    },
+    "s014": {
+      "category": "resource_capacity_lifecycle_failure",
+      "difficulty": "easy",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 1.0,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 1.0,
+      "rationale": "The agent's diagnosis is exceptionally accurate, correctly identifying the OOM-kill triggered by the SKU onboarding spike, the best-effort skip-and-continue wrapper design, and the lack of visibility in the standard logs. It avoids all distractors and meets all required elements."
+    },
+    "s015": {
+      "category": "resource_capacity_lifecycle_failure",
+      "difficulty": "medium",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        false,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        false
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 0.8333,
+      "required_elements_coverage": 0.6667,
+      "distractor_penalty": 1.0,
+      "overall": 0.7667,
+      "rationale": "The agent correctly identifies the VM capacity shortfall, the scheduling deferral mechanism, and why the coverage check missed the gaps. However, it fails to explain why the pattern of missing zones rotates or appears random day-to-day (which is due to the worker-assignment order at scheduling time)."
+    },
+    "s016": {
+      "category": "change_management_failure",
+      "difficulty": "medium",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 1.0,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 1.0,
+      "rationale": "The agent's diagnosis is exceptionally accurate, correctly identifying the fillna(0) mechanism, the test suite's unrepresentative sampling of SKUs with >=180 days of history, and the specific impact on newly launched SKUs. It avoided all distractors."
+    },
+    "s017": {
+      "category": "change_management_failure",
+      "difficulty": "easy",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 1.0,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 1.0,
+      "rationale": "The agent's diagnosis is exceptionally accurate, correctly identifying all steps of the causal chain and all required elements without falling for any of the distractors."
+    },
+    "s018": {
+      "category": "change_management_failure",
+      "difficulty": "easy",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        false
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 1.0,
+      "required_elements_coverage": 0.6667,
+      "distractor_penalty": 1.0,
+      "overall": 0.8667,
+      "rationale": "The agent correctly identified the entire causal chain, including the schema migration, the implicit write permissions, and the static allowlist in the access provisioning config. It met the first two required elements, but failed the third as it proposed adding validation to the static config rather than deriving grants from the table registry or automating provisioning on release."
+    },
+    "s019": {
+      "category": "secondary_model_layer_failure",
+      "difficulty": "medium",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 1.0,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 1.0,
+      "rationale": "The agent's diagnosis is exceptionally accurate and complete. It correctly identifies the config key rename, the try/except block mechanism, the DEBUG logging level suppression, and the resulting silent fallback to an empty list of enabled zones for all runs since the change."
+    },
+    "s020": {
+      "category": "secondary_model_layer_failure",
+      "difficulty": "hard",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 1.0,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 1.0,
+      "rationale": "The agent's diagnosis is exceptionally accurate, correctly identifying all steps of the causal chain, addressing all required elements including the lack of anomaly exclusion and decay mechanisms, and avoiding all distractors."
+    },
+    "s021": {
+      "category": "false_positive_correct_behavior",
+      "difficulty": "hard",
+      "causal_chain_hits": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "required_element_hits": [
+        true,
+        true,
+        true
+      ],
+      "distractor_hits": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "causal_chain_coverage": 1.0,
+      "required_elements_coverage": 1.0,
+      "distractor_penalty": 1.0,
+      "overall": 1.0,
+      "rationale": "The agent correctly identified that there was no pipeline bug and that the 47 missing combinations were intentionally excluded by the four eligibility filters. It successfully mapped out the entire causal chain, avoided all distractors, and proposed a helpful reporting enhancement instead of an unnecessary code fix."
+    }
+  }
+}

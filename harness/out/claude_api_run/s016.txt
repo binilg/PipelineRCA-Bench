@@ -1,0 +1,13 @@
+ROOT CAUSE:
+The vectorized refactor of `days_since_last_sale()` introduced a silent semantic change for SKUs with no sales history. The original loop-based implementation (commit 51c7a88) used a sentinel value of 999 for SKUs that had never recorded a sale, correctly signaling "no history" to the forecasting model. The new vectorized implementation fills NaN values (which result from NaT - Timestamp arithmetic for never-sold SKUs) with 0, which the model interprets as "sold today" — the strongest possible recency signal. This causes the model to massively over-forecast demand for newly launched SKUs that haven't yet recorded their first sale.
+
+CAUSAL CHAIN:
+1. On 2026-08-10, the vectorized `days_since_last_sale()` was deployed, replacing the loop-based implementation that returned sentinel value 999 for SKUs with no sales history (NaT `last_sale_date`)
+2. For newly launched SKUs with zero sales, `(run - catalog["last_sale_date"])` produces NaN because `last_sale_date` is NaT
+3. The `.fillna(0)` call converts these NaN values to 0, making the feature indistinguishable from SKUs that sold on the run date itself
+4. The forecasting model interprets `days_since_last_sale=0` as maximum recency/momentum and generates extremely high demand forecasts
+5. Newly launched SKUs (within 30 days) with zero sales history receive forecasts 240%+ above actual demand
+6. The bug was not caught in testing because the QA sample explicitly filtered to `sales_history_days >= 180`, excluding all zero-history SKUs from the side-by-side comparison
+
+PROPOSED FIX:
+Replace `return diff.fillna(0)` with `return diff.fillna(999)` to restore the original sentinel value semantics for SKUs with no sales history. This ensures that never-sold SKUs are treated as having very stale (or no) recency signal rather than maximum recency. Additionally, expand the test suite to include SKUs with `last_sale_date=NaT` to prevent regression of this edge case.

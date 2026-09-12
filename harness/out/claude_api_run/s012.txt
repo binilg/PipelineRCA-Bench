@@ -1,0 +1,14 @@
+ROOT CAUSE:
+The validation rule was developed and tuned against a dev dataset containing only EACH-unit SKUs (max observed forecast 3,180), leading to a hardcoded cap of 5,000 units. This cap is appropriate for EACH-unit SKUs but is inappropriately low for CASE-unit SKUs, which legitimately require forecasts in the 7,000-10,000 range. When case-unit SKUs were introduced to production in zone Z_SW (starting March 2025), the validation rule began silently clipping their legitimate model outputs to 5,000, causing persistent under-forecasting and stockouts for SKU_30011, SKU_30012, and SKU_30014.
+
+CAUSAL CHAIN:
+1. Dev dataset was seeded from zone Z_N only, which historically contained no case-unit SKUs (100% EACH-unit, max forecast 3,180)
+2. Validation rule MAX_FORECAST_QTY_PER_SKU was set to 5,000 based on dev dataset characteristics, with no unit_type awareness built into the logic
+3. Case-unit SKUs were introduced to production in Z_SW (commit c40e771, 2025-03-02) for bulk beverage/pantry lines, but dev dataset was never updated
+4. Model correctly generates forecasts of 7,220-9,850 units for case-unit SKUs (SKU_30011, SKU_30012, SKU_30014) based on actual demand patterns
+5. Validation rule clips these legitimate forecasts to 5,000, logging them identically to actual scoring bugs
+6. Clipped forecasts (5,000) are consistently 30-50% below actual demand (7,180-9,910), causing recurring stockouts
+7. Pipeline reports SUCCESS with no errors because clipping is working as designed; only business impact (stockouts) surfaces the problem
+
+PROPOSED FIX:
+Modify `validation_rule.py` to make the cap unit_type-aware. Add a parameter to `validate_and_clip()` to accept `unit_type`, and apply different thresholds: keep `MAX_FORECAST_QTY_PER_SKU = 5000` for EACH-unit SKUs, but set `MAX_FORECAST_QTY_PER_SKU_CASE = 15000` (or appropriate value based on production case-unit data analysis) for CASE-unit SKUs. Additionally, update the dev dataset to include representative case-unit SKUs from Z_SW so future validation rules are tuned against realistic production data for all unit types.

@@ -1,0 +1,15 @@
+ROOT CAUSE:
+The Z_SW zone did not receive vendor feed data on 2026-08-05 due to a public holiday (vendor site closed), yet the pipeline treated this missing data as zero sales for all SKUs in that zone. The `build_features` function performs a LEFT JOIN between the catalog and actuals, then fills missing `actual_qty` values with 0.0. This design cannot distinguish between "no sales occurred" and "no data was received." When Z_SW's entire feed was absent, all Z_SW SKUs received actual_qty=0.0 as features, causing the scoring models to produce artificially low forecasts for that zone. The pipeline completed successfully because missing vendor feeds are not configured as a hard block, and the code has no logic to detect or handle zone-level feed absence.
+
+CAUSAL CHAIN:
+1. Vendor feed for Z_SW did not land on 2026-08-05 due to public holiday (vendor site closed)
+2. Ingestion bot proceeded with 5/6 zones since no hard block is configured for partial vendor landing
+3. `load_actuals(run_date="2026-08-05")` returned a DataFrame with no rows for zone Z_SW
+4. `catalog.merge(actuals, on=["sku_id", "zone"], how="left")` left all Z_SW SKU rows with NaN in the `actual_qty` column
+5. `merged["actual_qty"].fillna(0.0)` replaced those NaNs with 0.0, treating missing feed data as zero sales
+6. Scoring models received features indicating zero recent sales activity for all Z_SW SKUs
+7. Models produced unusually low forecasts for Z_SW, causing the -18% total forecast volume drop
+8. DAG completed successfully with no exceptions because the code executed as designed
+
+PROPOSED FIX:
+Add zone-level feed validation before feature building. After loading actuals, check that all expected zones are present in the data (compare against a configured list or prior-day zones). If any zone is completely missing, either (1) fail the DAG with a clear error message requiring manual review, or (2) use a fallback strategy such as carrying forward the prior day's actuals for the missing zone, with explicit logging. The fillna(0.0) logic should only apply to individual missing SKU-zone combinations within a zone that has data, not to entire missing zones. Example: `expected_zones = {"Z_N", "Z_NE", "Z_S", "Z_SE", "Z_SW", "Z_NW"}; received_zones = set(actuals["zone"].unique()); missing = expected_zones - received_zones; if missing: raise ValueError(f"Missing zone feeds: {missing}")`.

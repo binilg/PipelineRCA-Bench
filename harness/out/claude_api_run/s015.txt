@@ -1,0 +1,14 @@
+ROOT CAUSE:
+The scheduler is designed to defer zones when insufficient workers are available, logging a warning but not raising a failure. During the cloud provider capacity constraints for c6i.2xlarge instances (2026-08-11 through 2026-08-18), the autoscaler intermittently failed to provision the full worker pool, causing 1-3 zones per day to be deferred. The deferred zones are never retried or rescheduled—they are simply dropped from that day's run. The pipeline reports SUCCESS because the deferral policy explicitly treats insufficient capacity as a non-failure condition. The coverage check doesn't catch this because losing 1-3 zones out of 260 (~1% of data) doesn't breach the aggregate row-count threshold of 1,250,000 rows.
+
+CAUSAL CHAIN:
+1. Cloud provider experiences capacity constraints for c6i.2xlarge instances in ap-southeast-2 (2026-08-11 to 2026-08-18)
+2. Autoscaler requests workers but receives fewer than the 260 needed to cover all zones
+3. Scheduler's `assign_workers` function assigns only the first N zones (up to available_workers) and defers the remainder
+4. Deferred zones are logged as a warning but never re-queued or retried within that day's run
+5. The pipeline completes successfully with only the assigned zones processed
+6. Coverage check passes because ~99% of expected rows are still present (well above the 1,250,000 threshold)
+7. DAG reports SUCCESS with no failed tasks, masking the fact that some zones have no forecasts for that day
+
+PROPOSED FIX:
+Modify the scheduler to either (1) fail the DAG run when zones are deferred, forcing visibility and manual intervention, or (2) implement a retry mechanism that re-attempts deferred zones after the initial scheduling window, potentially with a longer timeout or by waiting for additional worker capacity. Additionally, consider implementing a per-zone coverage check rather than an aggregate row-count threshold, so that missing even a single zone triggers a failure. The current "deferred-not-failed" policy silently drops data, which violates the expectation that all zones receive daily forecasts.
