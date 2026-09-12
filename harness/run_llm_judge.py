@@ -259,6 +259,32 @@ def _extract_json(raw: str) -> dict:
     return json.loads(match.group(0))
 
 
+def _validate_hit_lengths(payload: dict, scenario: "ScenarioLite") -> None:
+    """Guards against the anomaly disclosed in phase3_report.md: a judge's
+    returned hit array can be shorter (or longer) than the number of
+    ground-truth items it was asked to grade -- e.g. s007's Claude-as-judge
+    response dropped one of 6 causal_chain steps, which _score_from_hits()
+    silently divided by 5 instead of 6, inflating that scenario's score.
+    Raising here instead of scoring a mismatched array is what lets the
+    caller retry the judge call rather than publish a wrong denominator."""
+    gt = scenario.ground_truth
+    checks = [
+        ("causal_chain_hits", gt.causal_chain),
+        ("required_element_hits", gt.required_answer_elements),
+        ("distractor_hits", gt.distractors),
+    ]
+    for key, expected_items in checks:
+        hits = payload.get(key)
+        if not isinstance(hits, list):
+            raise ValueError(f"{key} missing or not a list in judge response")
+        if len(hits) != len(expected_items):
+            raise ValueError(
+                f"{key} has {len(hits)} entries but ground truth has "
+                f"{len(expected_items)} item(s) -- judge likely dropped "
+                f"or added an entry"
+            )
+
+
 # ---------------------------------------------------------------------------
 # Judge model backends
 # ---------------------------------------------------------------------------
@@ -352,6 +378,9 @@ def main() -> None:
                      help="Seconds between scenario calls (default: 4.0 -- higher than the "
                           "diagnosis-collection scripts' default, since judge calls hit rate "
                           "limits faster back-to-back in testing)")
+    ap.add_argument("--max-judge-attempts", type=int, default=3,
+                     help="Retries per scenario if the judge's JSON is malformed or a hit "
+                          "array's length doesn't match the ground truth item count (default: 3)")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
@@ -407,17 +436,29 @@ def main() -> None:
         raw_diag = (args.diagnoses_dir / f"{sid}.txt").read_text(encoding="utf-8")
         diagnosis = parse_diagnosis(raw_diag)
         prompt = build_judge_prompt(scenario, diagnosis)
-        try:
-            raw_response = call(prompt)
-            payload = _extract_json(raw_response)
-            score = _score_from_hits(
-                payload["causal_chain_hits"], payload["required_element_hits"],
-                payload["distractor_hits"], payload.get("rationale", ""),
-            )
-        except Exception as e:
-            print(f"    FAILED: {e}")
-            errors.append(f"{sid}: {e}")
-            score = {"error": str(e)}
+
+        score = None
+        last_err: Exception | None = None
+        for attempt in range(1, args.max_judge_attempts + 1):
+            try:
+                raw_response = call(prompt)
+                payload = _extract_json(raw_response)
+                _validate_hit_lengths(payload, scenario)
+                score = _score_from_hits(
+                    payload["causal_chain_hits"], payload["required_element_hits"],
+                    payload["distractor_hits"], payload.get("rationale", ""),
+                )
+                break
+            except Exception as e:
+                last_err = e
+                print(f"    attempt {attempt}/{args.max_judge_attempts} failed: {e}")
+                if attempt < args.max_judge_attempts:
+                    time.sleep(args.sleep)
+
+        if score is None:
+            print(f"    FAILED after {args.max_judge_attempts} attempt(s): {last_err}")
+            errors.append(f"{sid}: {last_err}")
+            score = {"error": str(last_err)}
 
         results[sid] = {
             "category": scenario.category,

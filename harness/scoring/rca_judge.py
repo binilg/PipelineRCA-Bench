@@ -156,19 +156,28 @@ class LLMDiagnosisJudge(DiagnosisJudge):
         judge = LLMDiagnosisJudge(call_claude)
     """
 
-    def __init__(self, call_model: Callable[[str], str]):
+    def __init__(self, call_model: Callable[[str], str], max_attempts: int = 3):
         self._call_model = call_model
+        self._max_attempts = max_attempts
 
     def score(self, scenario: Scenario, diagnosis: Diagnosis) -> JudgeScore:
         prompt = build_judge_prompt(scenario, diagnosis)
-        raw = self._call_model(prompt)
-        payload = _extract_json(raw)
-        return _score_from_hits(
-            causal_chain_hits=list(payload["causal_chain_hits"]),
-            required_element_hits=list(payload["required_element_hits"]),
-            distractor_hits=list(payload["distractor_hits"]),
-            rationale=payload.get("rationale", ""),
-        )
+        last_err: Exception | None = None
+        for attempt in range(1, self._max_attempts + 1):
+            raw = self._call_model(prompt)
+            try:
+                payload = _extract_json(raw)
+                _validate_hit_lengths(payload, scenario)
+            except (ValueError, KeyError) as e:
+                last_err = e
+                continue
+            return _score_from_hits(
+                causal_chain_hits=list(payload["causal_chain_hits"]),
+                required_element_hits=list(payload["required_element_hits"]),
+                distractor_hits=list(payload["distractor_hits"]),
+                rationale=payload.get("rationale", ""),
+            )
+        raise ValueError(f"Judge failed after {self._max_attempts} attempt(s): {last_err}")
 
 
 def _extract_json(raw: str) -> dict:
@@ -176,6 +185,31 @@ def _extract_json(raw: str) -> dict:
     if not match:
         raise ValueError(f"Judge response did not contain a JSON object: {raw!r}")
     return json.loads(match.group(0))
+
+
+def _validate_hit_lengths(payload: dict, scenario: Scenario) -> None:
+    """A judge's hit array can come back shorter or longer than the number
+    of ground-truth items it was asked to grade -- observed in practice on
+    a Phase 3 run, where a dropped causal_chain entry silently shifted the
+    scoring denominator and inflated that scenario's coverage. Raise here
+    so the caller can retry the judge call instead of scoring a mismatched
+    array."""
+    gt = scenario.ground_truth
+    checks = [
+        ("causal_chain_hits", gt.causal_chain),
+        ("required_element_hits", scenario.required_answer_elements),
+        ("distractor_hits", gt.distractors),
+    ]
+    for key, expected_items in checks:
+        hits = payload.get(key)
+        if not isinstance(hits, list):
+            raise ValueError(f"{key} missing or not a list in judge response")
+        if len(hits) != len(expected_items):
+            raise ValueError(
+                f"{key} has {len(hits)} entries but ground truth has "
+                f"{len(expected_items)} item(s) -- judge likely dropped "
+                f"or added an entry"
+            )
 
 
 class StubHeuristicJudge(DiagnosisJudge):
