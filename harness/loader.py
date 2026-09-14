@@ -164,13 +164,17 @@ def build_agent_task(scenario: Scenario) -> AgentTask:
     context: dict[str, str] = {}
     for rel_path in scenario.context_files:
         full = scenario.scenario_dir / rel_path
-        try:
-            context[rel_path] = full.read_text(errors="replace")
-        except IsADirectoryError:
-            # e.g. s001's context/model_logs/ entry with a trailing comment
-            # about "255 per-model logs; signal is in 3" -- expand directories
+        # e.g. s001's context/model_logs/ entry -- expand directories to every
+        # file inside. Checked with is_dir() rather than a bare read_text()
+        # try/except IsADirectoryError: POSIX raises IsADirectoryError for
+        # open() on a directory, but Windows raises PermissionError instead,
+        # which silently swallowed every such scenario's directory context
+        # until this was caught running the harness on Windows.
+        if full.is_dir():
             for sub in sorted(full.rglob("*")):
                 if sub.is_file():
                     rel_sub = str(sub.relative_to(scenario.scenario_dir))
                     context[rel_sub] = sub.read_text(errors="replace")
+        else:
+            context[rel_path] = full.read_text(errors="replace")
     return AgentTask(scenario_id=scenario.id, symptom=scenario.symptom, context=context)

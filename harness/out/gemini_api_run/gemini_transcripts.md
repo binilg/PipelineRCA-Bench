@@ -6,22 +6,26 @@ Ground truth (`manifest.yaml`) was never included in any prompt.
 
 ---
 
-## s001 — recovery_temporal_state (hard)
+## s001 — resource_capacity_lifecycle_failure (hard)
+
+*Collected 2026-09-14, against the rewritten ground truth (see
+`harness/out/phase3_report.md`'s 2026-09-14 update note). The original
+s001 transcript, against the missing-training-config root cause, is no
+longer part of this file; the scenario it describes no longer exists.*
 
 ROOT CAUSE:
-The root cause is missing model pickle artifacts (`model.pkl`) for models M_0147, M_0148, and M_0149 under zone `Z_NW` in `/models/prod/Z_NW/` for run date 2026-07-14. These three models were registered on 2026-07-11 following a territory realignment, but the upstream model training/deployment job failed to generate or publish their `model.pkl` artifacts. When `daily_forecast_scoring` executed for 2026-07-14, attempts to load the artifacts threw a `FileNotFoundError`. Finding no prior historical model artifacts for zone `Z_NW`, the DAG invoked `_fallback_to_prior_day` for all three models and copied forecast data from 2026-07-13. Because 3 fallbacks were within the `FALLBACK_TOLERANCE` threshold of 5, the Airflow task completed as successful, triggering downstream alerts for fallback forecast usage.
+Models **M_0147**, **M_0148**, and **M_0149** (all in zone `Z_NW`) fell back to prior-day forecasts because feature generation exceeded the 8 GB memory limit of the assigned `medium` VM tier. This occurred because a partner EDI feed with a multi-week backfill was enabled on 2026-07-14, causing `Z_NW` daily data volume to spike from ~6.0 GB to 24.8 GB. Because VM sizing is computed nightly from a trailing 7-day rolling average prior to the run, worker sizing could not anticipate the same-day volume spike, resulting in a `MemoryError` during feature joins that safely triggered the built-in fallback handler as designed.
 
 CAUSAL CHAIN:
-1. On 2026-07-11, zone Z_NW was added and models M_0147, M_0148, and M_0149 were set to active in `model_registry.csv`.
-2. Upstream artifact publishing failed to produce `model.pkl` files for models M_0147, M_0148, and M_0149 under `/models/prod/Z_NW/{model_id}/2026-07-14/`.
-3. During execution on 2026-07-14, `score_one` encountered `FileNotFoundError` when trying to open `/models/prod/Z_NW/{model_id}/2026-07-14/model.pkl` for M_0147, M_0148, and M_0149.
-4. `_latest_artifact` found no prior model artifacts stored for zone `Z_NW`, triggering `_fallback_to_prior_day`.
-5. `_fallback_to_prior_day` read partition data from `2026-07-13` for M_0147, M_0148, and M_0149, stamped them with `run_date=2026-07-14`, and returned them.
-6. The total fallbacks count (3) did not exceed `FALLBACK_TOLERANCE` (5), allowing the DAG to pass without error while downstream fallback alerts fired.
+1. Commit `8a4c1f0` enabled the partner EDI feed for zone `Z_NW`, introducing a multi-week backfill on 2026-07-14.
+2. Incoming data volume for `Z_NW` spiked to 24.8 GB (nominal volume is ~6.0 GB).
+3. The nightly VM sizing job sized `Z_NW` worker nodes based on the trailing 7-day average (6.0 GB), provisioning a `medium` VM tier with an 8 GB memory budget.
+4. During feature generation, input frames after joins required 9.9 GB (M_0147), 8.6 GB (M_0148), and 8.1 GB (M_0149), exceeding the 8 GB budget and raising `MemoryError`.
+5. The `score_one` exception handler caught the errors and invoked `_fallback_to_prior_day`, stamping 2026-07-13 forecasts for 2026-07-14.
+6. The DAG completed successfully because 3 fallback substitutions remained within `FALLBACK_TOLERANCE` (5), but the downstream fallback monitor alerted on the substituted models.
 
 PROPOSED FIX:
-1. Fix the upstream model training and artifact deployment pipeline for zone Z_NW so that `model.pkl` artifacts for M_0147, M_0148, and M_0149 are generated and published to `/models/prod/Z_NW/{model_id}/{run_date}/model.pkl` daily.
-2. Publish the missing `model.pkl` artifacts for M_0147, M_0148, and M_0149 for 2026-07-14 and trigger a re-run of `daily_forecast_scoring` for `run_date=2026-07-14` to replace the fallback forecasts with actual model predictions.
+No code fix needed. The pipeline functioned as designed: the one-time data spike safely triggered fallback predictions without crashing the pipeline, remaining well within the configured tolerance threshold (3 out of 5). Furthermore, subsequent runs automatically self-healed as the 7-day rolling average incorporated the spike and upgraded `Z_NW` to tier `large` (24 GB) starting 2026-07-15. If fresh (non-fallback) forecasts are strictly required for `M_0147`, `M_0148`, and `M_0149` for the 2026-07-14 partition, an operator can manually re-trigger scoring for those three models on a `large` VM.
 
 ---
 

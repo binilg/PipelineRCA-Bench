@@ -4,14 +4,15 @@
   "diagnoses_dir": "out\\gemini_api_run",
   "scenarios_dir": "..\\scenarios",
   "methodology": "Diagnoses in out\\gemini_api_run graded via claude (claude-sonnet-4-5) using JUDGE_PROMPT_TEMPLATE from harness/scoring/rca_judge.py, ported byte-for-byte into this standalone script, and scored with the identical _score_from_hits formula: overall = (0.6*causal_chain_coverage + 0.4*required_elements_coverage) * distractor_penalty. This is a cross-model grading pass -- the judge model is deliberately different from the model whose diagnoses are being graded, so no model grades its own answers.",
-  "mean": 0.9781,
+  "mean": 0.9902,
   "scenarios": {
     "s001": {
-      "category": "recovery_temporal_state",
+      "category": "resource_capacity_lifecycle_failure",
       "difficulty": "hard",
       "causal_chain_hits": [
         true,
-        false,
+        true,
+        true,
         true,
         true,
         true
@@ -19,7 +20,8 @@
       "required_element_hits": [
         true,
         true,
-        false
+        true,
+        true
       ],
       "distractor_hits": [
         false,
@@ -27,11 +29,12 @@
         false,
         false
       ],
-      "causal_chain_coverage": 0.8,
-      "required_elements_coverage": 0.6667,
+      "causal_chain_coverage": 1.0,
+      "required_elements_coverage": 1.0,
       "distractor_penalty": 1.0,
-      "overall": 0.7467,
-      "rationale": "The diagnosis correctly identifies the three models (M_0147, M_0148, M_0149) and zone Z_NW, recognizes missing model artifacts as the mechanism, and traces the causal chain from realignment through fallback. However, it fails to identify the specific root cause: that the training DAG's static config was not updated to include Z_NW, instead vaguely attributing it to 'upstream artifact publishing failed.'"
+      "overall": 1.0,
+      "rationale": "The diagnosis correctly identifies all three fallback models (M_0147, M_0148, M_0149) in zone Z_NW, accurately traces the root cause to the data volume spike from the EDI backfill outrunning the rolling-average VM sizing, explains the MemoryError mechanism during feature-building, and avoids all distractors including the unrelated M_0088 warning.",
+      "note": "s001's ground truth was rewritten 2026-09-14 (VM-capacity root cause replacing the original missing-training-config root cause). This entry is against the NEW ground truth; it is not comparable to any pre-2026-09-14 s001 number elsewhere in this repo's history."
     },
     "s002": {
       "category": "rerun_idempotency_failure",

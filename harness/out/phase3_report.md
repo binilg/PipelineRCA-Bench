@@ -1,8 +1,24 @@
 # PipelineRCA-Bench — Phase 3 Results
 
-*Current as of 2026-08-23. This supersedes all earlier passes; superseded
-scores are retained in `phase3_results.json` under `*_deprecated` keys for
-audit trail.*
+*Current as of 2026-08-23, with s001 rewritten and re-collected/re-graded
+on 2026-09-14 (see the update note directly below). Supersedes all
+earlier passes; superseded scores are retained in `phase3_results.json`
+under `*_deprecated` keys for audit trail.*
+
+**Update (2026-09-14): s001's ground truth was rewritten.** The original
+s001 ("new zone's training config never updated, so its models were
+never trained") had an unresolved internal inconsistency: the fallback
+path it relied on needs a legitimate prior-day forecast to fall back
+to, but the affected models were only 3 days old at the incident date,
+with no evidence of how a valid prior-day forecast could have existed
+for them. Rather than leave that gap, s001 was rewritten around a
+different mechanism — an undersized worker VM, sized off a lagging
+rolling average, that couldn't handle a same-day data-volume spike —
+which does not have that gap (these are long-running models with a
+real prior day to fall back to). Every number below reflects the new
+s001; see `scenarios/s001_silent_fallback_missing_model/manifest.yaml`
+and its `context/` for the current version. s001 also moved category,
+from `recovery_temporal_state` to `resource_capacity_lifecycle_failure`.
 
 Baseline runs against all 21 scenarios: a naive floor baseline, a blind
 Claude (Sonnet) diagnosis, and a blind Gemini diagnosis. Both frontier arms
@@ -27,15 +43,15 @@ methodology for all three agents and merged in below.
 
 | Agent | Mean score | Causal-chain coverage | Required-elements coverage |
 |---|---|---|---|
-| **Naive** (symptom echo, no tools) | **0.075** | 0.00 | 0.19 |
-| **Claude** (closed-book, full evidence, API) — judged by Gemini | **0.952** | 0.95 | 0.95 |
-| **Gemini** (closed-book, full evidence, API) — judged by Claude | **0.978** | 0.97 | 0.98 |
+| **Naive** (symptom echo, no tools) | **0.079** | 0.00 | 0.20 |
+| **Claude** (closed-book, full evidence, API) — judged by Gemini | **0.959** | 0.95 | 0.97 |
+| **Gemini** (closed-book, full evidence, API) — judged by Claude | **0.990** | 0.98 | 1.00 |
 
-Both frontier models score roughly **13x** the naive floor — the
+Both frontier models score roughly **12x** the naive floor — the
 benchmark's core discrimination signal: diagnosing these incidents
 requires actually reading and connecting the evidence, not just
 restating the symptom. Under this pass's independent, cross-model
-judging, Gemini edges out Claude (0.978 vs. 0.952, a ~2.6-point gap) —
+judging, Gemini edges out Claude (0.990 vs. 0.959, a ~3.1-point gap) —
 a reversal from every earlier pass, where Claude led. See "Known
 limitations" for why this reversal happened and why it should be read
 cautiously rather than as "Gemini is now the stronger model."
@@ -140,7 +156,7 @@ differentiate any of the three agents. Flagged as future work in
 
 | ID | Category | Difficulty | Naive | Claude (judged by Gemini) | Gemini (judged by Claude) |
 |---|---|---|---|---|---|
-| s001 | recovery_temporal_state | hard | 0.000 | 0.747 | 0.747 |
+| s001 | resource_capacity_lifecycle_failure | hard | 0.100 | 0.900 | 1.000 |
 | s002 | rerun_idempotency_failure | medium | 0.100 | 1.000 | 1.000 |
 | s003 | train_serving_skew | medium | 0.133 | 1.000 | 1.000 |
 | s004 | recovery_temporal_state | medium | 0.133 | 0.914 | 0.914 |
@@ -176,7 +192,7 @@ which is the more meaningful number: it never once correctly identifies
 a mechanism.
 
 Under this pass, Claude is the model with more non-perfect scores (5:
-s001, s004, s007, s015, s018) versus Gemini (3: s001, s004, s007) — the
+s001, s004, s007, s015, s018) versus Gemini (2: s004, s007) — the
 reverse of every prior pass, where Gemini trailed Claude. See "Known
 limitations" for why this flip is likely a grading-methodology effect
 as much as (or more than) a capability difference.
@@ -185,11 +201,11 @@ as much as (or more than) a capability difference.
 
 | Category | Naive mean | Claude mean | Gemini mean |
 |---|---|---|---|
-| recovery_temporal_state | 0.089 | 0.887 | 0.887 |
+| recovery_temporal_state | 0.133 | 0.957 | 0.957 |
 | rerun_idempotency_failure | 0.122 | 0.900 | 0.960 |
 | train_serving_skew | 0.133 | 1.000 | 1.000 |
 | data_quality_gate_failure | 0.000 | 1.000 | 1.000 |
-| resource_capacity_lifecycle_failure | 0.089 | 0.922 | 1.000 |
+| resource_capacity_lifecycle_failure | 0.092 | 0.917 | 1.000 |
 | change_management_failure | 0.000 | 0.956 | 1.000 |
 | secondary_model_layer_failure | 0.067 | 1.000 | 1.000 |
 | false_positive_correct_behavior | 0.133 | 1.000 | 1.000 |
@@ -209,10 +225,12 @@ prior, differently-collected-and-graded pass.
 |---|---|---|---|
 | easy (7 scenarios) | 0.057 | 0.981 | 1.000 |
 | medium (9 scenarios) | 0.085 | 0.931 | 0.977 |
-| hard (5 scenarios) | 0.080 | 0.949 | 0.949 |
+| hard (5 scenarios) | 0.100 | 0.980 | 1.000 |
 
-Both models are statistically indistinguishable on `hard` scenarios
-(0.949 each, identical to two prior passes). Neither model's difficulty
+The two models are no longer near-identical on `hard` scenarios the
+way they were in every prior pass (0.949 each) — Gemini now scores a
+clean 1.000 on all five, while Claude's 0.980 reflects its one miss on
+the rewritten s001 (see per-scenario table). Neither model's difficulty
 means are monotonic — medium scores below hard for both — the same
 non-monotonic pattern seen in every pass so far. At only 21 scenarios (9
 medium, 5 hard) this is best read as "these difficulty labels don't
@@ -247,14 +265,20 @@ medium tier is miscalibrated.
   removes same-model self-grading, but a third, unrelated model (or
   human review) grading a sample would be a further check worth running
   before treating these numbers as fully settled.
-- s001 and s007 remain the two hardest scenarios for both models, as in
-  every prior pass, though the two models no longer miss identically:
-  s001 is still an exact tie (0.747 each), but s007 now splits
-  (Claude 0.700, Gemini 0.880, the latter subject to the array-length
-  caveat above). Worth a scenario-authoring look in a future revision —
-  e.g. making s007's "engineer's mistaken belief about the `--days`
-  flag" more directly evidenced in the context files rather than
-  requiring it to be inferred.
+- **s001's numbers are not comparable to any pre-2026-09-14 pass** —
+  see the update note at the top of this report. Its ground truth was
+  rewritten, not just re-collected or re-graded, so its old scores
+  (0.747 for both models, in every prior pass including this one before
+  the rewrite) describe a scenario that no longer exists. The
+  `*_pre_rewrite_deprecated` keys in `phase3_results.json` preserve the
+  old numbers for audit trail.
+- s007 remains the hardest scenario for both models and now the only
+  one where they diverge sharply: Claude 0.700, Gemini 0.880 (the
+  latter subject to the array-length caveat above). Worth a
+  scenario-authoring look in a future revision — e.g. making s007's
+  "engineer's mistaken belief about the `--days` flag" more directly
+  evidenced in the context files rather than requiring it to be
+  inferred.
 - Fix verification exists as a regression-test layer but doesn't yet
   differentiate agents (see Methodology above).
 - s004's authored ground truth had a minor internal inconsistency,

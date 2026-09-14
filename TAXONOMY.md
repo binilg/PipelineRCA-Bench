@@ -19,7 +19,6 @@ A failure or gap on one day gets silently papered over -- by a fallback,
 a zero-fill, or an unbackfilled gap -- so a later run looks clean while
 quietly depending on bad or missing state from an earlier point in time.
 
-- **s001** (hard) -- new zone's models have no trained artifact; scoring silently falls back to yesterday's forecast, under the alert threshold.
 - **s004** (medium) -- an unbackfilled failed run leaves a hole in a 3-day rolling-average feature, which gets zero-filled instead of excluded.
 - **s005** (easy) -- one zone's vendor actuals feed doesn't land for a day; missing data is treated as zero sales rather than "no data."
 
@@ -67,6 +66,7 @@ Infrastructure-layer decisions -- storage lifecycle policies, memory
 limits, cloud capacity -- interact with the pipeline in ways nobody
 who owns the pipeline logic anticipated.
 
+- **s001** (hard) -- a zone's worker VM is sized off a lagging rolling average; a same-day data-volume spike outruns it, three models OOM and silently fall back to yesterday's forecast, and the VM auto-upgrades the following night once the spike enters the average -- self-correcting before anyone investigates.
 - **s013** (easy) -- a generic storage lifecycle policy archives a reference file the pipeline reads daily but never writes to, since "unmodified" isn't the same as "unused."
 - **s014** (easy) -- a memory spike from a SKU-onboarding event gets a zone's scoring pod OOM-killed, and a best-effort skip-and-continue policy quietly drops it instead of retrying or alerting.
 - **s015** (medium) -- a regional cloud capacity shortfall means the autoscaler can't provision enough workers, and the scheduler's "deferred, not failed" design silently and permanently drops whichever zones missed the cutoff.
@@ -124,11 +124,13 @@ against it as a validation and gap-finding exercise.
 
 **What validated well**: several real incidents mapped almost exactly
 onto scenarios already in the set -- a storage lifecycle policy
-archiving a live dependency (s013), a missing model for a category
-(s001), a VM capacity shortfall causing fallback (s015), and a code bug
-causing a forecast file to publish twice (s006) all had close
-real-world analogues already covered, which was a useful sanity check
-that the original 15 weren't purely speculative.
+archiving a live dependency (s013), a VM capacity shortfall causing
+fallback (s015), and a code bug causing a forecast file to publish
+twice (s006) all had close real-world analogues already covered, which
+was a useful sanity check that the original 15 weren't purely
+speculative. (s001 originally validated against a missing-model
+incident too, before its ground truth was rewritten 2026-09-14 -- see
+`harness/out/phase3_report.md`.)
 
 **What was missing**: the real log surfaced five patterns the original
 5-category taxonomy had no coverage for at all -- release/deployment

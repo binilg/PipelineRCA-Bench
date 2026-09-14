@@ -1,8 +1,8 @@
 id: s001
-title: Silent fallback to prior-day forecast after missing model artifact
-category: recovery_temporal_state
+title: Undersized VM drops three models to yesterday's forecast during a data-volume spike
+category: resource_capacity_lifecycle_failure
 difficulty: hard
-stack: [airflow, python, pandas]
+stack: [airflow, python, pandas, vm-autoscaling]
 
 # What the agent is told. Note: no exception, no failed task.
 symptom: |
@@ -17,55 +17,81 @@ symptom: |
 context_files:
   - context/dag.py
   - context/scoring_summary.log
-  - context/model_logs/          # 255 per-model logs; signal is in 3
+  - context/model_logs/          # 6 per-model logs; signal is in 3
   - context/model_registry.csv
   - context/output_sample.csv
+  - context/vm_sizing_log.txt
+  - context/data_volume_log.txt
   - context/git_log.txt
 
 ground_truth:
   root_cause: |
-    Three models (M_0147, M_0148, M_0149) had no trained artifact
-    available for run_date 2026-07-14. All three belong to zone Z_NW,
-    which was created by a territory realignment on 2026-07-11.
+    On 2026-07-14, zone Z_NW's incoming order-line volume spiked sharply
+    -- a newly enabled partner EDI feed delivered several weeks of
+    correction backfill in a single file, pushing that day's volume to
+    roughly 25GB against a normal ~6GB.
 
-    The training DAG's zone list is sourced from a static config that
-    was not updated when the new zone was introduced, so no models were
-    ever trained for Z_NW. The scoring DAG's per-model loader raised
-    FileNotFoundError for those three, which the fallback handler caught
-    and substituted with the prior day's forecasts (2026-07-13).
+    The zone's scoring worker VM is sized nightly from a rolling 7-day
+    trailing average of the zone's data volume (see vm_sizing_log.txt),
+    so the VM provisioned for 2026-07-14's run still reflected the
+    pre-spike average and was sized "medium" (8GB memory budget) -- the
+    sizing job has no visibility into a day's actual volume until that
+    day is already over.
 
-    Because the fallback count (3) is below the tolerance threshold (5),
-    the DAG reported success and the summary log recorded no error.
+    Building features for that volume on a medium VM exceeded the
+    memory budget for the three models that run on Z_NW's shared
+    worker (M_0147, M_0148, M_0149 -- one per product category), each
+    raising a MemoryError partway through. The scoring code treats this
+    the same as any other per-model failure: it invoked the standard
+    fallback handler, which substituted each model's prior-day
+    (2026-07-13) forecast and re-stamped it with today's run_date.
+
+    Because the fallback count (3) stayed below the alerting tolerance
+    (5), the DAG reported success and the summary log recorded no
+    error. The following night, the rolling 7-day average for Z_NW now
+    included the spike day, crossing the threshold into the "large"
+    tier (24GB) -- so the sizing job automatically provisioned a larger
+    VM for 2026-07-15 onward, and scoring succeeded normally with no
+    one changing anything by hand. That silent self-correction is also
+    why nobody investigated at the time: by the time anyone reviewed
+    historical numbers, the symptom had already stopped reproducing.
 
   causal_chain:
-    - territory realignment created new zone Z_NW on 2026-07-11
-    - training config zone list not updated, so no models trained for Z_NW
-    - scoring loader raised FileNotFoundError for the 3 Z_NW models
-    - fallback handler substituted prior-day forecasts and logged at model level only
-    - fallback count below tolerance threshold, so DAG reported success
+    - a newly enabled partner EDI feed delivered a multi-week correction backfill in one file, spiking zone Z_NW's 2026-07-14 data volume to ~25GB against a normal ~6GB
+    - the zone's worker VM is sized nightly from a rolling 7-day trailing average, so 2026-07-14's VM was still provisioned "medium" (8GB) off the pre-spike average
+    - building features for the spiked volume on the medium VM exceeded its memory budget, and each of the three Z_NW category models (M_0147, M_0148, M_0149) raised a MemoryError
+    - the fallback handler caught the failure and substituted each model's prior-day (2026-07-13) forecast, re-stamped with today's run_date
+    - the fallback count (3) stayed below the alerting tolerance (5), so the DAG reported success with no error surfaced
+    - the next night's rolling average now included the spike, so the sizing job auto-upgraded Z_NW to a "large" VM for 2026-07-15 onward, silently resolving the symptom before anyone looked into it
 
   # Plausible-but-wrong causes present in the context.
   distractors:
-    - scoring_summary.log contains a benign memory warning on M_0088
-    - git_log.txt shows an unrelated refactor of the output writer on 2026-07-13
-    - two models (M_0031, M_0202) show elevated runtime but completed normally
-    - output_sample.csv contains a legitimate zero-demand row for a seasonal SKU
+    - scoring_summary.log shows M_0088 (an unrelated zone, Z_SE) peaked at 6.2GB against its own 6.0GB soft-warning threshold but still completed -- tempting to treat as the same issue, but it's a different zone that never actually failed
+    - git_log.txt shows the VM-sizing rolling window was shortened from 14 days to 7 days two weeks earlier -- real, and it does make the lag worse, but even a 14-day window would have been overwhelmed by a spike this size relative to normal daily volume; the window length is not what the fix should target
+    - git_log.txt shows an unrelated refactor of the output writer's partition assembly, merged the day before the incident
+    - output_sample.csv shows M_0202 at forecast_qty=0.0 -- a legitimate zero-demand row for a seasonal SKU, not a sign of another failure
 
   acceptable_fixes:
     - description: |
-        Add zone Z_NW to the training config zone list so models are
-        trained for the new zone. Backfill training for Z_NW.
+        Size (or re-size) each zone's worker VM from that run's actual
+        incoming data volume, not only a lagging historical average --
+        e.g. check the ingested row/byte count before dispatching to a
+        worker, and pick the VM tier from that, so a same-day spike is
+        sized correctly instead of only being caught the day after.
     - description: |
-        Derive the training zone list dynamically from the zone dimension
-        table rather than static config, so new zones are picked up.
+        When a model raises a MemoryError, automatically retry that
+        same run on the next VM tier up before falling back to
+        yesterday's forecast, rather than accepting the fallback and
+        waiting for tomorrow's rolling average to catch up.
   # Mitigations — accepted only when paired with a root fix above.
   partial_credit_fixes:
-    - description: Fail loudly on missing artifact rather than falling back
-    - description: Alert on fallback regardless of count threshold
+    - description: Alert whenever any model falls back, regardless of whether the count is below tolerance, so a human notices same-day rather than only when reviewing historical numbers
+    - description: Extend the rolling-average window or lower the fallback tolerance as a mitigation, without addressing that sizing is reactive rather than volume-aware
   verification: verify/test_fix.py
 
-# Anti-gaming: agent must name the models AND the reason.
+# Anti-gaming: agent must name the mechanism, not just the symptom.
 required_answer_elements:
   - identifies M_0147, M_0148, M_0149 (or zone Z_NW) as the fallback models
-  - identifies missing trained model artifact as the mechanism
-  - traces to zone Z_NW absent from training config after realignment
+  - identifies insufficient VM memory / MemoryError during feature-building as the mechanism, not a missing model or missing training
+  - traces the root cause to a data-volume spike outrunning the rolling-average-based VM sizing (sizing lagged behind actual same-day volume)
+  - does not attribute the issue primarily to the M_0088 memory warning (a different, unrelated zone that completed successfully)

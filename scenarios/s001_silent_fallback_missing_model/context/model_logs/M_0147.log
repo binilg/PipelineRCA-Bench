@@ -1,8 +1,7 @@
-2026-07-14 02:44:12 INFO  [M_0147] Scoring start. zone=Z_NW run_date=2026-07-14
-2026-07-14 02:44:12 INFO  [M_0147] Resolving artifact: /models/prod/Z_NW/M_0147/2026-07-14/model.pkl
-2026-07-14 02:44:12 ERROR [M_0147] FileNotFoundError: /models/prod/Z_NW/M_0147/2026-07-14/model.pkl
-2026-07-14 02:44:12 INFO  [M_0147] Retrying with latest available artifact for zone Z_NW
-2026-07-14 02:44:13 ERROR [M_0147] No artifact found for zone Z_NW at any date
-2026-07-14 02:44:13 WARN  [M_0147] Invoking fallback handler
-2026-07-14 02:44:14 INFO  [M_0147] Fallback: sourced forecast from run_date=2026-07-13 partition
-2026-07-14 02:44:14 INFO  [M_0147] Scoring complete (fallback). status=OK_FALLBACK
+2026-07-14 02:44:12 INFO  [M_0147] Scoring start. zone=Z_NW run_date=2026-07-14 vm_size=medium
+2026-07-14 02:44:12 INFO  [M_0147] Loading artifact: /models/prod/Z_NW/M_0147/2026-07-14/model.pkl
+2026-07-14 02:44:13 INFO  [M_0147] Artifact loaded.
+2026-07-14 02:45:51 ERROR [M_0147] MemoryError building features on medium VM (8GB budget): input frame 9.9GB exceeds budget after joins
+2026-07-14 02:45:51 WARN  [M_0147] Invoking fallback handler
+2026-07-14 02:45:52 INFO  [M_0147] Fallback: sourced forecast from run_date=2026-07-13 partition
+2026-07-14 02:45:52 INFO  [M_0147] Scoring complete (fallback). status=OK_FALLBACK

@@ -1,0 +1,14 @@
+VM sizing job -- recomputes each zone's worker VM tier once nightly,
+ahead of that night's scoring run, from a rolling 7-day trailing
+average of the zone's data volume (see data_volume_log.txt). Tiers:
+small (<4GB avg) / medium (<8GB avg) / large (>=8GB avg).
+
+2026-07-09  zone=Z_NW  rolling_7d_avg_gb=6.0   tier=medium  (unchanged)
+2026-07-10  zone=Z_NW  rolling_7d_avg_gb=6.0   tier=medium  (unchanged)
+2026-07-11  zone=Z_NW  rolling_7d_avg_gb=6.0   tier=medium  (unchanged)
+2026-07-12  zone=Z_NW  rolling_7d_avg_gb=6.0   tier=medium  (unchanged)
+2026-07-13  zone=Z_NW  rolling_7d_avg_gb=6.0   tier=medium  (unchanged)
+2026-07-14  zone=Z_NW  rolling_7d_avg_gb=6.0   tier=medium  (unchanged -- sized ahead of today's run, does not yet reflect today's actual volume)
+2026-07-15  zone=Z_NW  rolling_7d_avg_gb=8.7   tier=large   (upgraded from medium -- 07-14's spike is now inside the trailing 7-day window)
+2026-07-16  zone=Z_NW  rolling_7d_avg_gb=8.8   tier=large   (unchanged)
+2026-07-17  zone=Z_NW  rolling_7d_avg_gb=8.6   tier=large   (unchanged)

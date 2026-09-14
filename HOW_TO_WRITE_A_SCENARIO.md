@@ -5,8 +5,10 @@ AI agent. The agent sees the `context/` files and the `symptom`; it must output
 (a) the root cause and (b) a valid fix. The `ground_truth` in `manifest.yaml` is
 hidden from the agent and used only for scoring.
 
-Use `s001_silent_fallback_missing_model/` as your template. Copy the folder,
-rename it `sNNN_short_description`, and edit.
+Use `s002_duplicate_rows_after_downstream_reclear/` as your template. Copy the
+folder, rename it `sNNN_short_description`, and edit. (Not s001 — its ground
+truth was rewritten 2026-09-14, so its folder name no longer matches its
+current content; s002 hasn't changed and its folder name still does.)
 
 ## The folder
 

@@ -19,25 +19,25 @@ quietly wrong.
 
 | Agent | Mean score | Causal-chain coverage | Required-elements coverage | Perfect scores |
 |---|---|---|---|---|
-| **Gemini** `gemini-3.6-flash` — closed-book | **0.978** | 0.974 | 0.984 | 18/21 |
-| **Claude** `claude-sonnet-4-5` — closed-book | **0.952** | 0.952 | 0.952 | 16/21 |
-| **Naive** — symptom echo, no tools | **0.075** | 0.00 | 0.19 | 0/21 |
+| **Gemini** `gemini-3.6-flash` — closed-book | **0.990** | 0.984 | 1.000 | 19/21 |
+| **Claude** `claude-sonnet-4-5` — closed-book | **0.959** | 0.954 | 0.968 | 16/21 |
+| **Naive** — symptom echo, no tools | **0.079** | 0.00 | 0.20 | 0/21 |
 
 Both frontier arms were collected via direct API calls with an identical closed-book
 prompt (symptom + verbatim context files, `ground_truth` never included), and graded
 by **cross-model automated judging**: Gemini grades Claude's diagnoses, Claude grades
 Gemini's. Neither model ever grades its own answers.
 
-Frontier models score roughly **13× the naive floor**. The two are close, and the
-0.026 gap between them is within the range these judges disagree on — treat them as
+Frontier models score roughly **12× the naive floor**. The two are close, and the
+0.031 gap between them is within the range these judges disagree on — treat them as
 comparable rather than ranked.
 
-**Judge agreement.** On 18 of 21 scenarios (86%) the two independently-produced
+**Judge agreement.** On 17 of 21 scenarios (81%) the two independently-produced
 diagnoses received *identical* scores from *different* judges. Disagreement is
-confined to three scenarios — s007, s015, s018 — where scores differ by 0.13–0.23.
-Two different model families, grading two different sets of answers against the same
-published rubric, converging this closely is evidence the rubric is doing the work
-rather than the grader's preferences.
+confined to four scenarios — s001, s007, s015, s018 — where scores differ by
+0.10–0.23. Two different model families, grading two different sets of answers
+against the same published rubric, converging this closely is evidence the rubric is
+doing the work rather than the grader's preferences.
 
 Full methodology, per-scenario scores, and limitations:
 [`harness/out/phase3_report.md`](harness/out/phase3_report.md).
@@ -73,11 +73,11 @@ public-source grounding for each category is in [`TAXONOMY.md`](TAXONOMY.md).
 
 | Category | n | What it covers |
 |---|---|---|
-| `recovery_temporal_state` | 3 | A gap on one day is silently papered over; a later run depends on bad state |
+| `recovery_temporal_state` | 2 | A gap on one day is silently papered over; a later run depends on bad state |
 | `rerun_idempotency_failure` | 3 | A reasonable retry interacts badly with a step that isn't safe to run twice |
 | `train_serving_skew` | 3 | Training and serving quietly disagree; no crash, just confident wrong answers |
 | `data_quality_gate_failure` | 3 | The gate built to catch this class of bug has a blind spot of its own |
-| `resource_capacity_lifecycle_failure` | 3 | Infra decisions interact with pipeline logic in unanticipated ways |
+| `resource_capacity_lifecycle_failure` | 4 | Infra decisions interact with pipeline logic in unanticipated ways |
 | `change_management_failure` | 3 | A change ships correctly in one place and not in another |
 | `secondary_model_layer_failure` | 2 | An adjustment/ensemble layer degrades silently while the core model is fine |
 | `false_positive_correct_behavior` | 1 | Nothing is broken — the correct diagnosis is "no bug exists" |

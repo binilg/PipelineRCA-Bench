@@ -161,17 +161,22 @@ fact without re-running.
 
 ### Known limitation of the stub judge (found during integration testing)
 
-Running both baseline agents against s001 under the stub judge, the
-naive agent (which just echoes the symptom text verbatim) scored *higher*
-than the keyword agent (which actually cites a specific evidence line).
-That's backwards from what a human grader would conclude, and it's
-expected: the symptom text happens to share vocabulary with the ground
-truth causal chain, so verbatim-echoing gets "free" lexical credit, while
-the keyword agent's more grounded but differently-worded answer doesn't
-match as literally. This is exactly the failure mode the module docstring
-warns about, and it's the concrete reason a real LLM judge (which grades
-meaning, not word overlap) matters before running this on anything you
-intend to draw conclusions from.
+Running both baseline agents against the original s001 under the stub
+judge (before its 2026-09-14 ground-truth rewrite — see
+`harness/out/phase3_report.md`), the naive agent (which just echoes the
+symptom text verbatim) scored *higher* than the keyword agent (which
+actually cites a specific evidence line). That's backwards from what a
+human grader would conclude, and it happened because the symptom text
+shared vocabulary with that version's ground truth causal chain, so
+verbatim-echoing got "free" lexical credit while the keyword agent's
+more grounded but differently-worded answer didn't match as literally.
+This is exactly the failure mode the module docstring warns about, and
+it's the concrete reason a real LLM judge (which grades meaning, not
+word overlap) matters before running this on anything you intend to
+draw conclusions from. (Against the current, rewritten s001, both
+baselines tie at 0.1 under the stub judge — a less dramatic case of the
+same underlying unreliability, not evidence the stub judge has gotten
+more trustworthy.)
 
 **Do not publish stub-judge numbers.** Use `--judge claude` for any run
 whose output leaves this repository.

@@ -1,4 +1,4 @@
 commit 7f3a1c9  2026-07-13  Refactor output_writer partition assembly for clarity
-commit 2b8e4d1  2026-07-11  Add zone Z_NW to zone dimension table (territory realignment)
-commit 9c1f7a3  2026-07-11  Register models M_0147-M_0149 for new zone Z_NW
+commit 8a4c1f0  2026-07-14  Enable partner EDI feed for zone Z_NW (first file includes multi-week correction backfill)
+commit 5d9e2a4  2026-06-30  Shorten VM-sizing rolling window from 14d to 7d (faster reaction to sustained volume growth)
 commit 4e2d8b6  2026-07-09  Bump pandas 2.1.4 -> 2.2.0
