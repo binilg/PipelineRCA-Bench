@@ -16,9 +16,11 @@ different mechanism — an undersized worker VM, sized off a lagging
 rolling average, that couldn't handle a same-day data-volume spike —
 which does not have that gap (these are long-running models with a
 real prior day to fall back to). Every number below reflects the new
-s001; see `scenarios/s001_silent_fallback_missing_model/manifest.yaml`
-and its `context/` for the current version. s001 also moved category,
-from `recovery_temporal_state` to `resource_capacity_lifecycle_failure`.
+s001; see `scenarios/s001_undersized_vm_silent_fallback/manifest.yaml`
+and its `context/` for the current version. Its folder was renamed to
+match (from `s001_silent_fallback_missing_model`) so the directory
+name doesn't lie about what's inside. s001 also moved category, from
+`recovery_temporal_state` to `resource_capacity_lifecycle_failure`.
 
 Baseline runs against all 21 scenarios: a naive floor baseline, a blind
 Claude (Sonnet) diagnosis, and a blind Gemini diagnosis. Both frontier arms
