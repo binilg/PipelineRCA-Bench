@@ -321,7 +321,9 @@ def call_claude(model: str, api_key: str, prompt: str, max_retries: int = 5) -> 
 
 
 def call_gemini(model: str, api_key: str, prompt: str, max_retries: int = 6) -> str:
-    url = f"{GEMINI_API_BASE}/{model}:generateContent?key={api_key}"
+    # Key goes in a header, not the URL query string, so it can't leak via
+    # logged URLs, proxies, or exception messages that echo the URL.
+    url = f"{GEMINI_API_BASE}/{model}:generateContent"
     body = json.dumps({
         "contents": [{"parts": [{"text": prompt}]}],
         # 8192, not 1024: gemini-3.6-flash is a thinking model, and
@@ -334,7 +336,8 @@ def call_gemini(model: str, api_key: str, prompt: str, max_retries: int = 6) -> 
     }).encode("utf-8")
     for attempt in range(1, max_retries + 1):
         req = urllib.request.Request(url, data=body, method="POST",
-                                      headers={"Content-Type": "application/json"})
+                                      headers={"Content-Type": "application/json",
+                                               "x-goog-api-key": api_key})
         try:
             with urllib.request.urlopen(req, timeout=120) as resp:
                 payload = json.loads(resp.read().decode("utf-8"))

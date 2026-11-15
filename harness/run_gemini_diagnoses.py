@@ -28,7 +28,7 @@ USAGE
     #          --out-dir "path/to/PipelineRCA-Bench project/harness/out/gemini_api_run"
     #
     # Optional flags:
-    #   --model gemini-3.7-flash      (default; try gemini-3.1-pro-preview for a comparison run)
+    #   --model gemini-3.6-flash      (default; the leaderboard model. 3.7-flash returned 503s in testing)
     #   --dry-run                     (print the first prompt and exit, no API calls, no cost)
     #   --only s001,s005              (run a subset, comma-separated scenario ids)
     #   --sleep 2.0                   (seconds between calls, default 2.0)
@@ -147,7 +147,9 @@ def build_prompt(task: ScenarioTask) -> str:
 
 
 def call_gemini(model: str, api_key: str, prompt: str, max_retries: int = 5) -> str:
-    url = f"{API_BASE}/{model}:generateContent?key={api_key}"
+    # Key goes in a header, not the URL query string, so it can't leak via
+    # logged URLs, proxies, or exception messages that echo the URL.
+    url = f"{API_BASE}/{model}:generateContent"
     body = json.dumps({
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
@@ -159,7 +161,7 @@ def call_gemini(model: str, api_key: str, prompt: str, max_retries: int = 5) -> 
     for attempt in range(1, max_retries + 1):
         req = urllib.request.Request(
             url, data=body, method="POST",
-            headers={"Content-Type": "application/json"},
+            headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
         )
         try:
             with urllib.request.urlopen(req, timeout=120) as resp:
@@ -201,8 +203,8 @@ def main() -> None:
                      help="Path to the scenarios/ folder (contains sNNN_*/manifest.yaml)")
     ap.add_argument("--out-dir", required=True, type=Path,
                      help="Where to write per-scenario .txt files and the combined .md file")
-    ap.add_argument("--model", default="gemini-3.7-flash",
-                     help="Gemini model id (default: gemini-3.7-flash)")
+    ap.add_argument("--model", default="gemini-3.6-flash",
+                     help="Gemini model id (default: gemini-3.6-flash, the leaderboard model)")
     ap.add_argument("--api-key-env", default="GEMINI_API_KEY",
                      help="Name of the env var holding your API key (default: GEMINI_API_KEY)")
     ap.add_argument("--only", default=None,

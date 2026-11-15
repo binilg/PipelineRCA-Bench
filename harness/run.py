@@ -38,7 +38,9 @@ from .report import (
 )
 from .tools import ToolBelt
 
-JUDGE_MODEL = "claude-sonnet-4-6"
+# Same Claude model used for the published leaderboard (run_llm_judge.py
+# --claude-model default), so `--judge claude` here grades identically.
+JUDGE_MODEL = "claude-sonnet-4-5"
 
 
 def build_judge(judge_name: str) -> DiagnosisJudge:
