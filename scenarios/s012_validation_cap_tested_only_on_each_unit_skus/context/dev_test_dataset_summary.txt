@@ -6,6 +6,8 @@ unit_type breakdown:
   CASE: 0 (0%)
 
 Max forecast_qty observed in dev dataset: 3,180 (SKU_DEV_0091, EACH)
+(forecast_qty is in individual units for all SKUs; unit_type is the
+ordering/shipping pack, not the unit the forecast is expressed in)
 
 Note: dev dataset was seeded from a snapshot of zone Z_N only, which
 historically has not carried case-unit SKUs. Case-unit SKUs were

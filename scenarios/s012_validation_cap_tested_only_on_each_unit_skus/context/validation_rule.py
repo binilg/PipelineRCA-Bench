@@ -4,6 +4,9 @@ import logging
 
 log = logging.getLogger("validation_rule")
 
+# forecast_qty is always in individual sellable units, for every SKU. The
+# scoring step converts CASE SKUs (case_qty x cases) before this runs;
+# unit_type only describes how an item is ordered and shipped.
 MAX_FORECAST_QTY_PER_SKU = 5000  # tuned/tested against dev data (each-unit SKUs only)
 
 def validate_and_clip(sku_id: str, forecast_qty: float) -> float:
