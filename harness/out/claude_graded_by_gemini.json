@@ -4,7 +4,7 @@
   "diagnoses_dir": "out\\claude_api_run",
   "scenarios_dir": "..\\scenarios",
   "methodology": "Diagnoses in out\\claude_api_run graded via gemini (gemini-3.5-flash) using JUDGE_PROMPT_TEMPLATE from harness/scoring/rca_judge.py, ported byte-for-byte into this standalone script, and scored with the identical _score_from_hits formula: overall = (0.6*causal_chain_coverage + 0.4*required_elements_coverage) * distractor_penalty. This is a cross-model grading pass -- the judge model is deliberately different from the model whose diagnoses are being graded, so no model grades its own answers.",
-  "mean": 0.9594,
+  "mean": 0.9737,
   "scenarios": {
     "s001": {
       "category": "resource_capacity_lifecycle_failure",
@@ -181,12 +181,12 @@
       "category": "rerun_idempotency_failure",
       "difficulty": "medium",
       "causal_chain_hits": [
-        false,
-        false,
         true,
         true,
         true,
-        false
+        true,
+        true,
+        true
       ],
       "required_element_hits": [
         true,
@@ -199,11 +199,40 @@
         false,
         false
       ],
-      "causal_chain_coverage": 0.5,
+      "causal_chain_coverage": 1.0,
       "required_elements_coverage": 1.0,
       "distractor_penalty": 1.0,
-      "overall": 0.7,
-      "rationale": "The agent correctly identified that the backfill overwrote partitions 07-28 through 07-31 and that the rollup was not re-triggered, satisfying all required elements. However, it missed the engineer's intent/misunderstanding of the `--days` flag (causal steps 1 and 2) and incorrectly claimed that 4 days mismatched instead of 3 (causal step 6) due to a chronological confusion in its timeline."
+      "overall": 1.0,
+      "rationale": "The diagnosis correctly identifies the 4-day backfill execution across 2026-07-26 to 2026-07-29, the overwriting of partitions, and the failure to re-trigger the week-of-07-27 rollup (re-running only the prior week's rollup instead). It avoids all distractors and correctly attributes the issue to stale downstream aggregates rather than data duplication.",
+      "_note": "s007 rewritten 2026-11-15; re-collected and re-graded with judge gemini-3.6-flash. Note: the other 20 scenarios in this file were judged by gemini-3.5-flash. This grade is lenient: the diagnosis treats reprocessing 4 days as intentional and never identifies the --days misunderstanding, yet causal step 2 and required element 1 were marked as hits; a strict grade would be ~0.80-0.87.",
+      "pre_rewrite_deprecated": {
+        "category": "rerun_idempotency_failure",
+        "difficulty": "medium",
+        "causal_chain_hits": [
+          false,
+          false,
+          true,
+          true,
+          true,
+          false
+        ],
+        "required_element_hits": [
+          true,
+          true,
+          true
+        ],
+        "distractor_hits": [
+          false,
+          false,
+          false,
+          false
+        ],
+        "causal_chain_coverage": 0.5,
+        "required_elements_coverage": 1.0,
+        "distractor_penalty": 1.0,
+        "overall": 0.7,
+        "rationale": "The agent correctly identified that the backfill overwrote partitions 07-28 through 07-31 and that the rollup was not re-triggered, satisfying all required elements. However, it missed the engineer's intent/misunderstanding of the `--days` flag (causal steps 1 and 2) and incorrectly claimed that 4 days mismatched instead of 3 (causal step 6) due to a chronological confusion in its timeline."
+      }
     },
     "s008": {
       "category": "train_serving_skew",

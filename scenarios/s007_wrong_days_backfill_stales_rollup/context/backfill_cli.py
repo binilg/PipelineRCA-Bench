@@ -6,6 +6,11 @@ Usage:
 --days: number of sequential run_dates to reprocess, starting from
         --start-date (inclusive). NOT a feature lookback window --
         that's configured separately in feature_config.yaml.
+
+Each reprocessed run_date is re-scored from its inputs as they exist at
+backfill time (including any late-arriving or corrected upstream data),
+and its forecast partition is overwritten in place. Output for a date
+can therefore differ from that date's original run.
 """
 import argparse, datetime as dt
 
@@ -22,7 +27,7 @@ def main():
     targets = dates_to_reprocess(args.start_date, args.days)
     print(f"Reprocessing {len(targets)} run_date(s): {targets}")
     for run_date in targets:
-        _rerun_scoring_dag(run_date)
+        _rerun_scoring_dag(run_date)  # overwrites /warehouse/forecasts/run_date=<run_date>
 
 if __name__ == "__main__":
     main()

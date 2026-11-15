@@ -4,7 +4,7 @@
   "diagnoses_dir": "out\\gemini_api_run",
   "scenarios_dir": "..\\scenarios",
   "methodology": "Diagnoses in out\\gemini_api_run graded via claude (claude-sonnet-4-5) using JUDGE_PROMPT_TEMPLATE from harness/scoring/rca_judge.py, ported byte-for-byte into this standalone script, and scored with the identical _score_from_hits formula: overall = (0.6*causal_chain_coverage + 0.4*required_elements_coverage) * distractor_penalty. This is a cross-model grading pass -- the judge model is deliberately different from the model whose diagnoses are being graded, so no model grades its own answers.",
-  "mean": 0.9902,
+  "mean": 0.9959,
   "scenarios": {
     "s001": {
       "category": "resource_capacity_lifecycle_failure",
@@ -185,7 +185,8 @@
         true,
         true,
         true,
-        false
+        true,
+        true
       ],
       "required_element_hits": [
         true,
@@ -198,11 +199,39 @@
         false,
         false
       ],
-      "causal_chain_coverage": 0.8,
+      "causal_chain_coverage": 1.0,
       "required_elements_coverage": 1.0,
       "distractor_penalty": 1.0,
-      "overall": 0.88,
-      "rationale": "The diagnosis correctly identifies the backfill with --days 4 reprocessing four dates, the lack of rollup re-triggering as the mechanism, and avoids the row-duplication distractor. However, causal step 6 is marked false because the diagnosis claims all four dates (07-28 through 07-31) mismatch, when the ground truth specifies only three days (07-29 through 07-31) disagree\u201407-28 needed the backfill and would match."
+      "overall": 1.0,
+      "rationale": "The diagnosis correctly identifies all six steps of the causal chain, including the vendor correction trigger, the --days 4 misunderstanding, the overwriting of four partitions, the timing relative to the week-of-07-27 rollup, the re-run of only the week-of-07-20 rollup, and the resulting staleness for exactly three days. It satisfies all required elements and does not fall for any of the distractors.",
+      "_note": "s007 rewritten 2026-11-15; re-collected and re-graded with judge claude-sonnet-4-5. Graded after the hit-array length validation fix, so the old s007 array-length anomaly (0.880) no longer applies.",
+      "pre_rewrite_deprecated": {
+        "category": "rerun_idempotency_failure",
+        "difficulty": "medium",
+        "causal_chain_hits": [
+          true,
+          true,
+          true,
+          true,
+          false
+        ],
+        "required_element_hits": [
+          true,
+          true,
+          true
+        ],
+        "distractor_hits": [
+          false,
+          false,
+          false,
+          false
+        ],
+        "causal_chain_coverage": 0.8,
+        "required_elements_coverage": 1.0,
+        "distractor_penalty": 1.0,
+        "overall": 0.88,
+        "rationale": "The diagnosis correctly identifies the backfill with --days 4 reprocessing four dates, the lack of rollup re-triggering as the mechanism, and avoids the row-duplication distractor. However, causal step 6 is marked false because the diagnosis claims all four dates (07-28 through 07-31) mismatch, when the ground truth specifies only three days (07-29 through 07-31) disagree\u201407-28 needed the backfill and would match."
+      }
     },
     "s008": {
       "category": "train_serving_skew",

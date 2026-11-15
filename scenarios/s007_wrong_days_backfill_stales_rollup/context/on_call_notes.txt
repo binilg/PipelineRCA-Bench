@@ -1,0 +1,13 @@
+[2026-08-04 13:48] @r.patel: vendor just sent corrected store transactions for
+2026-07-26 (ticket VND-2291) -- original feed double-counted two stores. Need to
+backfill 07-26 forecasts.
+
+[2026-08-04 13:55] @r.patel: our demand features use a 4-day rolling window, so
+I'll run the backfill with --start-date 2026-07-26 --days 4 so the lookback is
+covered.
+
+[2026-08-04 14:10] @r.patel: backfill finished, 4/4 run_dates ok.
+
+[2026-08-04 14:30] @r.patel: per the backfill runbook, re-ran the weekly rollup
+for the week containing the backfilled date (week of 07-20, since 07-26 is a
+Sunday). status=SUCCESS. Closing this out.

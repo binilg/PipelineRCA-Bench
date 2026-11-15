@@ -19,8 +19,8 @@ quietly wrong.
 
 | Agent | Mean score | Causal-chain coverage | Required-elements coverage | Perfect scores |
 |---|---|---|---|---|
-| **Gemini** `gemini-3.6-flash` — closed-book | **0.990** | 0.984 | 1.000 | 19/21 |
-| **Claude** `claude-sonnet-4-5` — closed-book | **0.959** | 0.954 | 0.968 | 16/21 |
+| **Gemini** `gemini-3.6-flash` — closed-book | **0.996** | 0.993 | 1.000 | 20/21 |
+| **Claude** `claude-sonnet-4-5` — closed-book | **0.974** | 0.977 | 0.968 | 17/21 |
 | **Naive** — symptom echo, no tools | **0.079** | 0.00 | 0.20 | 0/21 |
 
 Both frontier arms were collected via direct API calls with an identical closed-book
@@ -29,15 +29,21 @@ by **cross-model automated judging**: Gemini grades Claude's diagnoses, Claude g
 Gemini's. Neither model ever grades its own answers.
 
 Frontier models score roughly **12× the naive floor**. The two are close, and the
-0.031 gap between them is within the range these judges disagree on — treat them as
-comparable rather than ranked.
+0.022 gap between them is within the range these judges disagree on — treat them as
+comparable rather than ranked. Both are near the ceiling: in this closed-book setting
+the current set no longer separates frontier models well.
 
-**Judge agreement.** On 17 of 21 scenarios (81%) the two independently-produced
+**Judge agreement.** On 18 of 21 scenarios (86%) the two independently-produced
 diagnoses received *identical* scores from *different* judges. Disagreement is
-confined to four scenarios — s001, s007, s015, s018 — where scores differ by
+confined to three scenarios — s001, s015, s018 — where scores differ by
 0.10–0.23. Two different model families, grading two different sets of answers
 against the same published rubric, converging this closely is evidence the rubric is
-doing the work rather than the grader's preferences.
+doing the work rather than the grader's preferences. Judges are not infallible,
+though: review found lenient grades on s002 and s007 (details in the phase 3 report).
+
+*s007 was rewritten on 2026-11-15 to fix internally inconsistent evidence and
+re-run for both arms; its old scores (Claude 0.700, Gemini 0.880) are kept for audit
+in `phase3_results.json`.*
 
 Full methodology, per-scenario scores, and limitations:
 [`harness/out/phase3_report.md`](harness/out/phase3_report.md).
